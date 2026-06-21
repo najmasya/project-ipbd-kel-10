@@ -1,0 +1,47 @@
+# ============================================
+# Alert Rules — Dibagi dua kategori
+# ============================================
+
+system_alerts:
+  - name: airflow_dag_failure
+    description: DAG Airflow gagal dijalankan
+    severity: critical
+    condition: "dag_status == 'failed'"
+    channels: [telegram]
+
+  - name: spark_job_failure
+    description: Spark job gagal atau crash
+    severity: critical
+    condition: "spark_job_status == 'failed'"
+    channels: [telegram]
+
+  - name: kafka_no_data
+    description: Kafka tidak menerima data dalam N menit
+    severity: warning
+    condition: "kafka_lag > 60s && message_count == 0"
+    channels: [telegram]
+
+  - name: service_down
+    description: Service Trino / PostgreSQL tidak merespon
+    severity: critical
+    condition: "service_health == 'down'"
+    channels: [telegram]
+
+  - name: data_quality_null_threshold
+    description: Persentase NULL melebihi ambang batas
+    severity: warning
+    condition: "null_percentage > 5.0"
+    channels: [telegram]
+
+business_alerts:
+  - name: xauusd_price_spike
+    description: Perubahan harga XAUUSD tidak wajar
+    severity: warning
+    condition: "abs(price_change_pct) > 2.0"
+    channels: [telegram]
+
+  - name: forecast_price_breakout
+    description: Prediksi harga emas melewati batas atas/bawah
+    severity: info
+    condition: "predicted_price > upper_bound OR predicted_price < lower_bound"
+    channels: [telegram]
