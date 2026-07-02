@@ -23,8 +23,8 @@ SPARK_ARGS = (
 default_args = {
     "owner": "ipbd-team",
     "depends_on_past": False,
-    "retries": 1,
-    "retry_delay": timedelta(minutes=5),
+    "retries": 2,
+    "retry_delay": timedelta(minutes=3),
     "on_failure_callback": alert_on_failure,
 }
 
@@ -41,11 +41,13 @@ with DAG(
     etl_batch_to_silver = BashOperator(
         task_id="etl_batch_to_silver",
         bash_command=f"{SPARK_EXEC} {SPARK_ARGS} {SRC_DIR}/processing/etl_batch_to_silver.py",
+        execution_timeout=timedelta(minutes=10),
     )
 
     feature_engineering = BashOperator(
         task_id="feature_engineering",
         bash_command=f"{SPARK_EXEC} {SPARK_ARGS} {SRC_DIR}/processing/feature_engineering.py",
+        execution_timeout=timedelta(minutes=10),
     )
 
     etl_batch_to_silver >> feature_engineering
