@@ -4,7 +4,7 @@ from airflow.operators.bash import BashOperator
 from airflow.utils.dates import days_ago
 from alert_utils import alert_on_failure
 
-SPARK_EXEC = "docker exec ipbd-spark-master spark-submit"
+SPARK_EXEC = "docker exec ipbd-spark-master /opt/spark/bin/spark-submit"
 SRC_DIR = "/opt/spark-apps"
 
 SPARK_ARGS = (
@@ -16,6 +16,8 @@ SPARK_ARGS = (
     "--conf spark.hadoop.fs.s3a.path.style.access=true "
     "--conf spark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem "
     "--conf spark.hadoop.fs.s3a.connection.ssl.enabled=false "
+    "--conf spark.sql.parquet.outputTimestampType=TIMESTAMP_MICROS "
+    "--conf spark.sql.legacy.parquet.nanosAsLong=true "
     "--packages org.apache.hadoop:hadoop-aws:3.3.4,org.postgresql:postgresql:42.7.1 "
 )
 

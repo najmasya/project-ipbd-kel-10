@@ -58,7 +58,8 @@ def ingest_gold_price(start_date: str = None, end_date: str = None):
 
     ticker_kurs = yf.Ticker("IDR=X")
     df_kurs = ticker_kurs.history(start=start_date, end=end_date)
-    kurs_series = df_kurs["Close"] if not df_kurs.empty else pd.Series(index=df_gold.index, data=15800)
+    kurs = df_kurs["Close"] if not df_kurs.empty else pd.Series(index=df_gold.index, data=15800)
+    kurs_series = kurs.reindex(df_gold.index, method='ffill')
 
     df = df_gold.reset_index()[["Date", "Open", "High", "Low", "Close", "Volume"]].copy()
     df["symbol"] = "XAU/USD"
