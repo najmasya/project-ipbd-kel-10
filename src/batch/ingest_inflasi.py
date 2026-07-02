@@ -21,7 +21,7 @@ client = Minio(
 )
 
 
-def log_pipeline(status, message, records=0, duration=0):
+def log_pipeline(status, message, records=0, duration=0, severity="INFO"):
     try:
         import psycopg2
         conn = psycopg2.connect(
@@ -34,9 +34,9 @@ def log_pipeline(status, message, records=0, duration=0):
         cur = conn.cursor()
         cur.execute("""
             INSERT INTO pipeline_logs
-                (pipeline_name, status, message, records_count, duration_ms, started_at, finished_at)
-            VALUES ('ingest_inflasi', %s, %s, %s, %s, NOW(), NOW())
-        """, (status, message, records, duration))
+                (pipeline_name, status, severity, message, records_count, duration_ms, started_at, finished_at)
+            VALUES ('ingest_inflasi', %s, %s, %s, %s, %s, NOW(), NOW())
+        """, (status, severity, message, records, duration))
         conn.commit()
         cur.close()
         conn.close()
@@ -68,7 +68,15 @@ def ingest_inflasi(year: int):
     )
 
     records = []
-    for item in raw.get("data", []).get("Data", []):
+    data_content = raw.get("data", [])
+    if isinstance(data_content, dict):
+        records_data = data_content.get("Data", [])
+    elif isinstance(data_content, list) and len(data_content) > 0:
+        records_data = data_content[0].get("Data", [])
+    else:
+        records_data = []
+
+    for item in records_data:
         label = item.get("label", "")
         value_str = item.get("nilai", "").replace(",", ".")
         try:
@@ -98,7 +106,7 @@ def ingest_inflasi(year: int):
         )
 
     duration = int((time.time() - start_ts) * 1000)
-    log_pipeline("success", f"Ingested {len(records)} months for {year}", len(records), duration)
+    log_pipeline("success", f"Ingested {len(records)} months for {year}", len(records), duration, severity="INFO")
     return records
 
 
@@ -108,4 +116,4 @@ if __name__ == "__main__":
         try:
             ingest_inflasi(y)
         except Exception as e:
-            log_pipeline("failed", str(e))
+            log_pipeline("failed", str(e), severity="FATAL")

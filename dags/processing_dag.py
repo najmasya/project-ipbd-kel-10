@@ -4,7 +4,7 @@ from airflow.operators.bash import BashOperator
 from airflow.utils.dates import days_ago
 from alert_utils import alert_on_failure
 
-SPARK_EXEC = "docker exec ipbd-spark-master spark-submit"
+SPARK_EXEC = "docker exec ipbd-spark-master /opt/spark/bin/spark-submit"
 SRC_DIR = "/opt/spark-apps"
 
 SPARK_ARGS = (

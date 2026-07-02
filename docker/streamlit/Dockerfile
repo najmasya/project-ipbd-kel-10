@@ -4,7 +4,7 @@ WORKDIR /app
 
 RUN pip install --no-cache-dir \
     streamlit==1.28 \
-    streamlit-authenticator==0.3.1 \
+    "streamlit-authenticator>=0.3.0" \
     pandas==2.0 \
     numpy==1.24 \
     plotly==5.18 \

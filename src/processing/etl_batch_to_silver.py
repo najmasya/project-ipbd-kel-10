@@ -23,7 +23,7 @@ SILVER_BASE = "s3a://silver-batch"
 
 
 def clean_inflation():
-    df = spark.read.parquet(f"{BRONZE_BASE}/inflation/")
+    df = spark.read.parquet(f"{BRONZE_BASE}/inflation/inflasi_*.parquet")
     df_clean = (
         df
         .withColumn("month_date", to_date(col("year").cast("string") + "-" + col("month").cast("string") + "-01"))

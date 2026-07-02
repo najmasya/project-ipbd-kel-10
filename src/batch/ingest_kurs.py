@@ -19,7 +19,7 @@ client = Minio(
 )
 
 
-def log_pipeline(status, message, records=0, duration=0):
+def log_pipeline(status, message, records=0, duration=0, severity="INFO"):
     try:
         import psycopg2
         conn = psycopg2.connect(
@@ -32,9 +32,9 @@ def log_pipeline(status, message, records=0, duration=0):
         cur = conn.cursor()
         cur.execute("""
             INSERT INTO pipeline_logs
-                (pipeline_name, status, message, records_count, duration_ms, started_at, finished_at)
-            VALUES ('ingest_kurs', %s, %s, %s, %s, NOW(), NOW())
-        """, (status, message, records, duration))
+                (pipeline_name, status, severity, message, records_count, duration_ms, started_at, finished_at)
+            VALUES ('ingest_kurs', %s, %s, %s, %s, %s, NOW(), NOW())
+        """, (status, severity, message, records, duration))
         conn.commit()
         cur.close()
         conn.close()
@@ -53,7 +53,7 @@ def ingest_kurs_usd_idr(start_date: str = None, end_date: str = None):
     df = ticker.history(start=start_date, end=end_date)
 
     if df.empty:
-        log_pipeline("warning", f"No data {start_date} to {end_date}")
+        log_pipeline("warning", f"No data {start_date} to {end_date}", severity="WARNING")
         return df
 
     df = df.reset_index()
@@ -77,7 +77,7 @@ def ingest_kurs_usd_idr(start_date: str = None, end_date: str = None):
     )
 
     duration = int((time.time() - start_ts) * 1000)
-    log_pipeline("success", f"Ingested {len(df)} rows", len(df), duration)
+    log_pipeline("success", f"Ingested {len(df)} rows", len(df), duration, severity="INFO")
     return df
 
 
@@ -85,4 +85,4 @@ if __name__ == "__main__":
     try:
         ingest_kurs_usd_idr()
     except Exception as e:
-        log_pipeline("failed", str(e))
+        log_pipeline("failed", str(e), severity="FATAL")

@@ -19,7 +19,7 @@ client = Minio(
 )
 
 
-def log_pipeline(status, message, records=0, duration=0):
+def log_pipeline(status, message, records=0, duration=0, severity="INFO"):
     try:
         import psycopg2
         conn = psycopg2.connect(
@@ -32,9 +32,9 @@ def log_pipeline(status, message, records=0, duration=0):
         cur = conn.cursor()
         cur.execute("""
             INSERT INTO pipeline_logs
-                (pipeline_name, status, message, records_count, duration_ms, started_at, finished_at)
-            VALUES ('ingest_emas', %s, %s, %s, %s, NOW(), NOW())
-        """, (status, message, records, duration))
+                (pipeline_name, status, severity, message, records_count, duration_ms, started_at, finished_at)
+            VALUES ('ingest_emas', %s, %s, %s, %s, %s, NOW(), NOW())
+        """, (status, severity, message, records, duration))
         conn.commit()
         cur.close()
         conn.close()
@@ -53,7 +53,7 @@ def ingest_gold_price(start_date: str = None, end_date: str = None):
     df_gold = ticker.history(start=start_date, end=end_date)
 
     if df_gold.empty:
-        log_pipeline("warning", f"No data {start_date} to {end_date}")
+        log_pipeline("warning", f"No data {start_date} to {end_date}", severity="WARNING")
         return df_gold
 
     ticker_kurs = yf.Ticker("IDR=X")
@@ -63,7 +63,7 @@ def ingest_gold_price(start_date: str = None, end_date: str = None):
     df = df_gold.reset_index()[["Date", "Open", "High", "Low", "Close", "Volume"]].copy()
     df["symbol"] = "XAU/USD"
     df["gold_price_usd_per_oz"] = df["Close"]
-    df["usd_idr_rate"] = kurs_series.values
+    df["usd_idr_rate"] = kurs_series.reindex(df_gold.index, method="ffill").values
     df["gold_price_rp_per_gram"] = (df["gold_price_usd_per_oz"] * df["usd_idr_rate"]) / 31.1035
     df["ingested_at"] = datetime.utcnow().isoformat()
 
@@ -84,7 +84,7 @@ def ingest_gold_price(start_date: str = None, end_date: str = None):
     )
 
     duration = int((time.time() - start_ts) * 1000)
-    log_pipeline("success", f"Ingested {len(df)} rows", len(df), duration)
+    log_pipeline("success", f"Ingested {len(df)} rows", len(df), duration, severity="INFO")
     return df
 
 
@@ -92,4 +92,4 @@ if __name__ == "__main__":
     try:
         ingest_gold_price()
     except Exception as e:
-        log_pipeline("failed", str(e))
+        log_pipeline("failed", str(e), severity="FATAL")

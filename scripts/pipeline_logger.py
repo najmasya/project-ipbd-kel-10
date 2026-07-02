@@ -21,17 +21,17 @@ def get_conn():
 
 def log_pipeline(pipeline_name, task_name=None, status="started",
                  message="", records_count=0, duration_ms=0,
-                 started_at=None, finished_at=None):
+                 started_at=None, finished_at=None, severity="INFO"):
     try:
         conn = get_conn()
         cur = conn.cursor()
         cur.execute("""
             INSERT INTO pipeline_logs
-                (pipeline_name, task_name, status, message, records_count,
+                (pipeline_name, task_name, status, severity, message, records_count,
                  duration_ms, started_at, finished_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (
-            pipeline_name, task_name, status, message, records_count,
+            pipeline_name, task_name, status, severity, message, records_count,
             duration_ms,
             started_at or datetime.utcnow(),
             finished_at or datetime.utcnow(),
@@ -57,6 +57,7 @@ def with_pipeline_log(pipeline_name, task_name=None):
                     pipeline_name=pipeline_name,
                     task_name=task_name,
                     status="success",
+                    severity="INFO",
                     message=f"{pipeline_name} completed",
                     records_count=records,
                     duration_ms=duration,
@@ -69,6 +70,7 @@ def with_pipeline_log(pipeline_name, task_name=None):
                     pipeline_name=pipeline_name,
                     task_name=task_name,
                     status="failed",
+                    severity="FATAL",
                     message=str(e),
                     duration_ms=duration,
                     started_at=started_at,

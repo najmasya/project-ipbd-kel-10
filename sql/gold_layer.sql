@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS pipeline_logs (
     pipeline_name   VARCHAR(100) NOT NULL,
     task_name       VARCHAR(100),
     status          VARCHAR(20) NOT NULL,
+    severity        VARCHAR(10) DEFAULT 'INFO',
     message         TEXT,
     records_count   INTEGER DEFAULT 0,
     duration_ms     INTEGER DEFAULT 0,
@@ -100,10 +101,22 @@ CREATE TABLE IF NOT EXISTS resource_metrics (
     recorded_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Pastikan kolom severity ada (untuk DB yang sudah existing)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'pipeline_logs' AND column_name = 'severity'
+    ) THEN
+        ALTER TABLE pipeline_logs ADD COLUMN severity VARCHAR(10) DEFAULT 'INFO';
+    END IF;
+END $$;
+
 -- Index
 CREATE INDEX IF NOT EXISTS idx_predictions_target_month ON gold_price_predictions (target_month DESC);
 CREATE INDEX IF NOT EXISTS idx_alerts_occurred ON xauusd_alerts (occurred_at DESC);
 CREATE INDEX IF NOT EXISTS idx_alerts_type ON xauusd_alerts (alert_type, severity);
 CREATE INDEX IF NOT EXISTS idx_pipeline_logs_status ON pipeline_logs (status, started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_pipeline_logs_severity ON pipeline_logs (severity, started_at DESC);
 CREATE INDEX IF NOT EXISTS idx_alert_log_time ON alert_log (triggered_at DESC);
 CREATE INDEX IF NOT EXISTS idx_resource_time ON resource_metrics (recorded_at DESC);
