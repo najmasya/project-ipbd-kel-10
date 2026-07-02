@@ -1,162 +1,283 @@
 # Fase 3 — Machine Learning & Analytics
 
-Panduan untuk Najma melanjutkan project.
+Panduan untuk Najma melanjutkan project setelah Fase 1 & 2 selesai.
 
 ---
 
-## 1. Prasyarat — Pipeline Fase 1-2 Harus Jalan
+## 1. Yang Sudah Dikerjakan di Fase 1 & 2 (oleh Vio)
 
-Sebelum mulai Fase 3, pastikan infrastruktur sudah jalan:
+### Batch Pipeline ✅
+```
+Airflow DAG (jadwal 07:00) 
+  ├─ ingest_inflasi.py  → BPS API → MinIO bronze-batch/inflation/parquet/
+  ├─ ingest_kurs.py     → Yahoo Finance → MinIO bronze-batch/exchange_rate/
+  └─ ingest_emas.py     → Yahoo Finance → MinIO bronze-batch/gold_price/
+        │
+        ▼
+Spark ETL (etl_batch_to_silver.py) → MinIO silver-batch/
+  ├─ inflation_clean/       (102 baris, bulanan 2018-2026)
+  ├─ exchange_rate_clean/   (259 baris, harian)
+  └─ gold_price_clean/      (252 baris, harian)
+```
 
-```bash
-# 1. Jalankan semua container
-docker compose -f docker/docker-compose.yaml up -d
+### Streaming Pipeline ✅
+```
+MT5 Producer (laptop) → Kafka topic xauusd_raw → Spark Structured Streaming
+        │
+        ▼
+MinIO silver-streaming/xauusd_ohlc/ (OHLC per menit saat MT5 aktif)
+```
 
-# 2. Cek semua service hidup
+### Infrastruktur ✅
+| Service | URL | Fungsi |
+|---|---|---|
+| Airflow | http://localhost:8080 (admin/admin) | Orkestrasi batch |
+| MinIO Console | http://localhost:9001 (minio_admin/minio_pass123) | Bronze + Silver storage |
+| PostgreSQL | localhost:5432 (ipbd_user/ipbd_pass) | Gold Layer + Logging |
+| Kafka | localhost:9092 | Message broker streaming |
+| Spark Master | http://localhost:8090 | Cluster processing |
+| MLflow | http://localhost:5000 | Experiment tracking |
+| Trino | http://localhost:8082 | Federated query engine |
+| Streamlit | http://localhost:8501 (admin/admin123) | Dashboard |
+| Grafana | http://localhost:3001 (admin/admin) | Monitoring + Alerting |
+
+### Alert System ✅
+Arsitektur 2 kategori, 1 bot `@ipbd_alert_bot`:
+
+```
+[SYSTEM] Alert ──→ health-checker insert ke DB ──→ Grafana query ──→ Telegram
+[BUSINESS] Alert ──→ Python (inference.py) ──→ Telegram langsung
+```
+
+| Kategori | Alert | Engine | Cara Kirim |
+|---|---|---|---|
+| `[SYSTEM]` | Service DOWN/UP, CPU/RAM > 90% | health-checker → DB → Grafana | Grafana notifier ke Telegram |
+| `[SYSTEM]` | DAG Airflow gagal/sukses | `alert_utils.py` callback | Langsung ke Telegram |
+| `[BUSINESS]` | XAUUSD spike, Kurs spike, Gold anomaly | `telegram_alert.py` | Langsung dari Python code |
+| `[BUSINESS]` | Prediksi harga > threshold | `inference.py` panggil `send_business_alert()` | Langsung ke Telegram |
+
+---
+
+## 2. Cara Start Semua Infrastruktur
+
+```powershell
+cd PROJECT_IPBD/docker
+docker compose up -d
+```
+
+Tunggu ~2 menit, cek:
+```powershell
 docker ps --format "table {{.Names}}\t{{.Status}}"
-
-# 3. Buat bucket MinIO
-docker exec ipbd-spark-master python /opt/spark/src/scripts/init_minio_buckets.py
-
-# 4. Seed data historis (2018-sekarang)
-docker exec ipbd-airflow-webserver python /opt/airflow/src/scripts/seed_data.py
-
-# 5. Trigger pipeline batch (manual)
-#    Buka http://localhost:8080 → trigger DAG batch_pipeline
-
-# 6. (Opsional) Jalankan streaming MT5
-#    Di laptop kamu: python src/streaming/mt5_producer.py
 ```
+Semua container harus `Up`.
 
-### Cek data sudah masuk:
-- **MinIO Console**: http://localhost:9001 (`minio_admin` / `minio_pass123`)
-  - Bucket `bronze-batch/` harus ada folder: `inflation/`, `exchange_rate/`, `gold_price/`
-  - Bucket `bronze-streaming/` akan terisi jika MT5 dan Spark Streaming jalan
-- **PostgreSQL**: tabel `pipeline_logs` harus terisi log dari batch pipeline
+### Sekali Jalan (Reset Database)
+Kalau ada error migrasi Airflow:
+```powershell
+docker exec ipbd-postgres psql -U ipbd_user -d pipeline_db -c "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;"
+docker compose up -d airflow-init
+```
 
 ---
 
-## 2. Yang Harus Kamu Kerjakan (Fase 3)
+## 3. Cara Jalankan Pipeline Batch (Sudah Otomatis)
 
-### A. ML Training — `src/ml/train.py`
-Sudah disediakan skeleton. Yang perlu kamu lakukan:
-1. Baca dataset dari `s3a://silver-batch/feature_engineering_dataset/`
-2. Training model (Linear Regression + Random Forest)
-3. Log experiment ke **MLflow** (`http://localhost:5000`)
-4. Daftarkan model terbaik ke **Model Registry**
-
-```bash
-# Jalankan training (via Airflow atau manual di spark)
-docker exec ipbd-airflow-webserver python -m src.ml.train
+Trigger sekali, lalu jalan otomatis tiap jam 07:00:
+```powershell
+docker exec ipbd-airflow-webserver airflow dags trigger batch_pipeline
+docker exec ipbd-airflow-webserver airflow dags trigger processing_pipeline
 ```
 
-### B. MLflow Experiment Tracking
-- UI: http://localhost:5000
-- Semua parameter, metrics, dan artifact model tercatat otomatis
-- Model terbaik bisa dipromosikan ke **Production** stage dari UI MLflow
-
-### C. Model Inference — `src/ml/inference.py`
-Setelah model terdaftar di MLflow Registry:
-1. Load model versi Production
-2. Ambil data terbaru dari feature engineering
-3. Prediksi harga emas
-4. Simpan hasil ke PostgreSQL (tabel `gold_price_predictions`)
-
-```bash
-docker exec ipbd-airflow-webserver python -m src.ml.inference
+Atau trigger manual untuk ETL Bronze → Silver:
+```powershell
+docker exec ipbd-spark-master /opt/spark/bin/spark-submit \
+  --master spark://spark-master:7077 \
+  --conf spark.hadoop.fs.s3a.endpoint=http://minio:9000 \
+  --conf spark.hadoop.fs.s3a.access.key=minio_admin \
+  --conf spark.hadoop.fs.s3a.secret.key=minio_pass123 \
+  --conf spark.hadoop.fs.s3a.path.style.access=true \
+  --conf spark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem \
+  --conf spark.hadoop.fs.s3a.connection.ssl.enabled=false \
+  --conf spark.sql.parquet.outputTimestampType=TIMESTAMP_MICROS \
+  --conf spark.sql.legacy.parquet.nanosAsLong=true \
+  /opt/spark-apps/processing/etl_batch_to_silver.py
 ```
-
-### D. Airflow DAG — `dags/training_dag.py`
-DAG `ml_training_pipeline` sudah siap, jalan setiap **Senin jam 09:00**.
-- Task `train_ml_models` → training + MLflow
-- Task `run_inference` → prediksi
-- **On failure**: otomatis kirim alert ke Telegram grup
 
 ---
 
-## 3. Struktur File yang Relevan
+## 4. Cara Jalankan Streaming (2 Terminal)
+
+### Terminal 1 — Spark Consumer (cukup sekali)
+```powershell
+docker exec ipbd-spark-master bash -c "nohup /opt/spark/bin/spark-submit \
+  --master spark://spark-master:7077 \
+  --deploy-mode client \
+  --conf spark.hadoop.fs.s3a.endpoint=http://minio:9000 \
+  --conf spark.hadoop.fs.s3a.access.key=minio_admin \
+  --conf spark.hadoop.fs.s3a.secret.key=minio_pass123 \
+  --conf spark.hadoop.fs.s3a.path.style.access=true \
+  --conf spark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem \
+  --conf spark.hadoop.fs.s3a.connection.ssl.enabled=false \
+  --conf spark.sql.parquet.outputTimestampType=TIMESTAMP_MICROS \
+  --conf spark.sql.legacy.parquet.nanosAsLong=true \
+  /opt/spark-apps/streaming/spark_consumer.py > /tmp/spark_streaming.log 2>&1 &"
+```
+
+### Terminal 2 — MT5 Producer (setiap mau streaming)
+Di laptop kamu (bukan di container):
+```powershell
+cd PROJECT_IPBD
+$env:MT5_SYMBOL="XAUUSDc"
+$env:MT5_LOGIN="isi_login_mt5"
+$env:MT5_PASSWORD="isi_password_mt5"
+$env:MT5_SERVER="isi_server_mt5"
+python src/streaming/mt5_producer.py
+```
+
+Cek hasil setelah ~2 menit:
+```powershell
+docker exec ipbd-minio ls /data/silver-streaming/xauusd_ohlc/
+```
+Kalau ada file `.parquet`, streaming berhasil.
+
+---
+
+## 5. Yang Harus Kamu Kerjakan (Fase 3)
+
+### A. Feature Engineering — Gabung Silver → Dataset ML
+**File:** `src/processing/feature_engineering.py`
+
+Data saat ini masih terpisah di 3+ tabel Silver. Kamu perlu:
+1. Baca `inflation_clean`, `exchange_rate_clean`, `gold_price_clean` dari MinIO Silver
+2. Baca `xauusd_ohlc` dari MinIO Silver-streaming (kalau ada)
+3. Agregasi harian → bulanan
+4. Gabung semua tabel berdasarkan `month_date`
+5. Buat fitur baru:
+   - Lag features (`inflasi_lag_1`, `inflasi_lag_2`, `gold_lag_1`)
+   - Rolling statistics (moving average 3/6 bulan)
+   - Scaling / normalisasi
+   - Target variable (`target_inflasi_bulan_depan`)
+6. Simpan hasil ke **Gold Layer (PostgreSQL)** tabel `fact_market_daily`
+
+**Trigger:**
+```powershell
+docker exec ipbd-spark-master /opt/spark/bin/spark-submit \
+  [spark config] \
+  /opt/spark-apps/processing/feature_engineering.py
+```
+
+### B. Training ML
+**File:** `src/ml/train.py`
+- Baca dataset dari Gold Layer (PostgreSQL)
+- Train: Linear Regression + Random Forest (boleh tambah XGBoost/LSTM)
+- Split: time series split (80/20)
+- Log ke **MLflow** (http://localhost:5000)
+- Daftarkan model terbaik ke Model Registry (stage: Production)
+
+### C. Inference
+**File:** `src/ml/inference.py`
+- Load model versi Production dari MLflow
+- Baca data terbaru dari PostgreSQL
+- Prediksi harga emas bulan depan
+- Simpan hasil ke tabel `gold_price_predictions`
+
+### D. Business Alert
+Di code kamu, import dan panggil fungsi dari `scripts.telegram_alert.py`:
+
+```python
+from scripts.telegram_alert import (
+    send_business_alert,          # Prediksi harga > threshold
+    send_business_xauusd_spike,   # XAUUSD lonjakan > 2%
+    send_business_kurs_spike,     # Kurs USD/IDR berubah > 2%
+    send_business_gold_anomaly,   # Harga emas di luar batas wajar
+)
+
+# Contoh:
+if predicted_price > 120000:
+    send_business_alert("Gold Price Prediction", predicted_price, 120000, "above")
+
+if abs(xauusd_change) > 2.0:
+    send_business_xauusd_spike("XAUUSDc", xauusd_change, 2.0)
+
+if abs(kurs_change_pct) > 2.0:
+    send_business_kurs_spike(kurs_change_pct, 2.0)
+
+if gold_price < 500000 or gold_price > 2000000:
+    send_business_gold_anomaly(gold_price, 500000, 2000000)
+```
+
+**Format pesan di Telegram:**
+```
+[BUSINESS] Gold Price Prediction
+Value: 125000.00 ^ Threshold: 120000.00
+Condition: Price above threshold
+
+[BUSINESS] XAUUSD Spike — Symbol: XAUUSDc
+Price Change: +2.50 | Threshold: +2.00
+
+[BUSINESS] Kurs USD/IDR Spike
+Change: +3.10% | Threshold: +2.00%
+
+[BUSINESS] Gold Price Anomaly
+Price: 175000.00 | Bounds: [500000.00, 2000000.00]
+Condition: Price is above upper bound
+```
+
+---
+
+## 6. Struktur File yang Relevan
 
 ```
 PROJECT_IPBD/
-├── src/ml/
-│   ├── __init__.py
-│   ├── train.py          ← Training + MLflow (isi logika kamu)
-│   ├── inference.py      ← Inference (isi logika kamu)
-│   └── utils.py          ← Helper: baca dataset, koneksi PostgreSQL, setup MLflow
-│
+├── src/
+│   ├── batch/                    # [VIO] Batch ingestion (inflasi, kurs, emas)
+│   ├── streaming/                # [VIO] MT5 producer + Spark consumer
+│   ├── processing/
+│   │   ├── etl_batch_to_silver.py    # [VIO] Bronze → Silver batch
+│   │   ├── etl_stream_to_silver.py   # [VIO] Bronze → Silver stream (reprocess)
+│   │   └── feature_engineering.py    # [NAJMA] Silver → Gold → Dataset ML
+│   ├── ml/
+│   │   ├── train.py              # [NAJMA] Training + MLflow
+│   │   ├── inference.py          # [NAJMA] Prediksi harga emas
+│   │   └── utils.py              # [NAJMA] Helper functions
+│   └── dashboard/                # [VIO] Streamlit dashboard
 ├── dags/
-│   └── training_dag.py   ← DAG training (sudah alert callback)
-│
-├── config/
-│   ├── spark.conf        ← Konfigurasi Spark
-│   ├── mlflow.conf       ← Konfigurasi MLflow
-│   └── alert_rules.yaml  ← Rule alert business (tambah threshold prediksi)
-│
+│   ├── batch_pipeline_dag.py     # [VIO] DAG batch ingestion
+│   ├── processing_dag.py         # [VIO] DAG ETL + feature engineering
+│   └── training_dag.py           # [NAJMA] DAG training ML (mingguan)
+├── sql/
+│   └── gold_layer.sql            # [VIO] Schema PostgreSQL Gold Layer
 ├── scripts/
-│   ├── telegram_alert.py ← Fungsi alert (import & gunakan)
-│   └── pipeline_logger.py← Logging otomatis
-│
-└── sql/
-    └── gold_layer.sql    ← Schema tabel gold_price_predictions & lainnya
+│   ├── telegram_alert.py         # [VIO] Alert Telegram (system + business)
+│   ├── pipeline_logger.py        # [VIO] Logger ke PostgreSQL
+│   ├── resource_monitor.py       # [VIO] CPU/RAM/Disk monitoring
+│   └── seed_data.py              # [VIO] Seed data historis
+├── config/
+│   ├── spark.conf                # Konfigurasi Spark
+│   └── alert_rules.yaml          # Rule alert
+├── .env.example                  # Template env vars (isi sendiri!)
+└── FASE3_README.md               # ← INI FILE INI
 ```
 
 ---
 
-## 4. Alert System yang Sudah Aktif
-
-### System Alert (otomatis dari Fase 1-2)
-| Kejadian | Trigger ke Telegram |
-|---|---|
-| Airflow DAG gagal | ✅ `on_failure_callback` |
-| Service down (PostgreSQL, Kafka, Spark, dll) | ✅ health checker tiap 60 detik |
-| CPU/RAM/Disk > 90% | ✅ resource monitor tiap 30 detik |
-| Pipeline log gagal | ✅ tercatat di `pipeline_logs` |
-
-### Business Alert (kamu perlu tambah di `scripts/telegram_alert.py`)
-| Kejadian | Cara |
-|---|---|
-| Prediksi harga emas > threshold | Panggil `send_business_alert()` dari inference |
-| Anomali XAUUSD | Panggil `send_business_alert()` dari stream processing |
-
-### Cara Kirim Alert dari Kode Kamu
-```python
-from scripts.telegram_alert import send_business_alert
-
-send_business_alert(
-    metric="Gold Price Prediction",
-    value=125000.0,
-    threshold=120000.0,
-    direction="above",
-)
-```
-
----
-
-## 5. Verifikasi — APA YANG HARUS KAMU LAKUKAN
-
-- [ ] 1. Infrastruktur jalan (docker compose up)
-- [ ] 2. Data batch sudah masuk ke MinIO Bronze (cek di console)
-- [ ] 3. Jalankan processing pipeline: `etl_batch_to_silver.py` + `feature_engineering.py`
-- [ ] 4. Cek dataset sudah di `s3a://silver-batch/feature_engineering_dataset/`
-- [ ] 5. **ISI** `src/ml/train.py` dengan logika training sesungguhnya
-- [ ] 6. **ISI** `src/ml/inference.py` dengan logika prediksi
-- [ ] 7. Jalankan training → cek MLflow UI
-- [ ] 8. Daftarkan model ke Production di MLflow
-- [ ] 9. Jalankan inference → cek PostgreSQL `gold_price_predictions`
-- [ ] 10. Tambah business alert jika prediksi melebihi threshold
-
----
-
-## 6. Troubleshooting
+## 7. Troubleshooting
 
 | Masalah | Solusi |
 |---|---|
-| Spark can't connect to MinIO | Cek `spark.hadoop.fs.s3a.endpoint` di `config/spark.conf` |
-| Airflow DAG not found | Cek DAG ada di folder `dags/`, restart scheduler |
-| MLflow can't save artifact | Cek bucket `mlflow-artifacts` sudah dibuat |
+| Spark can't connect to MinIO | Cek endpoint `http://minio:9000` di spark conf |
+| Airflow DAG not found | Cek PYTHONPATH di compose file, restart scheduler |
+| MLflow can't save artifact | Cek bucket `mlflow-artifacts` di MinIO |
 | Telegram alert not sent | Cek `.env` sudah isi `TELEGRAM_BOT_TOKEN` & `TELEGRAM_CHAT_ID` |
 | PostgreSQL connection refused | Tunggu container postgres healthcheck selesai |
+| Data streaming kosong | Jalanin MT5 producer dulu |
+| Docker API error | Restart Docker Desktop dari tray icon |
 
 ---
 
-**Good luck!** Kalau ada masalah, cek log container: `docker logs <container_name>`
+## 8. Kontak
+
+Kalau ada masalah dengan pipeline Fase 1-2, tanya **Vio**.
+Kalau ada pertanyaan tentang ML / feature engineering, diskusi aja.
+
+**Good luck!**

@@ -44,11 +44,16 @@ def log_pipeline(status, message, records=0, duration=0, severity="INFO"):
         print(f"[LOG] Failed: {e}")
 
 
+def year_to_th(year):
+    return year - 1900
+
+
 def ingest_inflasi(year: int):
     start_ts = time.time()
+    th_value = year_to_th(year)
     url = (
         f"https://webapi.bps.go.id/v1/api/list/"
-        f"model/ipt/domain/1200/var/206/th/{year}/key/{BPS_API_KEY}"
+        f"model/data/lang/ind/domain/0000/var/1/th/{th_value}/key/{BPS_API_KEY}"
     )
     resp = requests.get(url, timeout=30)
     resp.raise_for_status()
@@ -61,36 +66,38 @@ def ingest_inflasi(year: int):
     data_bytes = json.dumps(raw, indent=2).encode("utf-8")
     client.put_object(
         BUCKET_BRONZE,
-        f"inflation/{filename}",
+        f"inflation/json/{filename}",
         BytesIO(data_bytes),
         length=len(data_bytes),
         content_type="application/json",
     )
 
     records = []
-    data_content = raw.get("data", [])
-    if isinstance(data_content, dict):
-        records_data = data_content.get("Data", [])
-    elif isinstance(data_content, list) and len(data_content) > 0:
-        records_data = data_content[0].get("Data", [])
-    else:
-        records_data = []
+    datacontent = raw.get("datacontent", {})
+    year_padded = f"{th_value:04d}"
+    prefix = f"99991{year_padded}"
 
-    for item in records_data:
-        label = item.get("label", "")
-        value_str = item.get("nilai", "").replace(",", ".")
-        try:
-            value = float(value_str)
-        except (ValueError, TypeError):
-            value = None
-        month = int(label.split()[-1]) if label.split()[-1].isdigit() else None
-        if month:
-            records.append({
-                "year": year,
-                "month": month,
-                "inflation_rate": value,
-                "ingested_at": datetime.utcnow().isoformat(),
-            })
+    for key, value in datacontent.items():
+        if key.startswith(prefix):
+            month_str = key.replace(prefix, "")
+            try:
+                month = int(month_str)
+            except (ValueError, TypeError):
+                continue
+            if 1 <= month <= 12:
+                val = value
+                if isinstance(val, str):
+                    val = val.replace(",", ".")
+                try:
+                    val_float = float(val)
+                except (ValueError, TypeError):
+                    val_float = None
+                records.append({
+                    "year": year,
+                    "month": month,
+                    "inflation_rate": val_float,
+                    "ingested_at": datetime.utcnow().isoformat(),
+                })
 
     if records:
         df = pd.DataFrame(records)
@@ -99,7 +106,7 @@ def ingest_inflasi(year: int):
         parquet_bytes.seek(0)
         client.put_object(
             BUCKET_BRONZE,
-            f"inflation/inflasi_{year}.parquet",
+            f"inflation/parquet/inflasi_{year}.parquet",
             parquet_bytes,
             length=parquet_bytes.getbuffer().nbytes,
             content_type="application/parquet",

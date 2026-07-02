@@ -11,9 +11,6 @@ POSTGRES_USER = os.getenv("POSTGRES_USER", "ipbd_user")
 POSTGRES_PASS = os.getenv("POSTGRES_PASSWORD", "ipbd_pass")
 POSTGRES_DB = os.getenv("POSTGRES_DB", "pipeline_db")
 POLL_INTERVAL = int(os.getenv("RESOURCE_POLL_INTERVAL", "30"))
-
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 CPU_ALERT_THRESHOLD = 90.0
 MEMORY_ALERT_THRESHOLD = 90.0
 DISK_ALERT_THRESHOLD = 90.0
@@ -25,41 +22,6 @@ def get_conn():
         user=POSTGRES_USER, password=POSTGRES_PASS,
         dbname=POSTGRES_DB,
     )
-
-
-def send_telegram(message: str):
-    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
-        return
-    import requests
-    try:
-        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-        requests.post(url, json={
-            "chat_id": TELEGRAM_CHAT_ID,
-            "text": message,
-            "parse_mode": "HTML",
-        }, timeout=10)
-    except Exception as e:
-        print(f"[RESOURCE] Telegram failed: {e}")
-
-
-def collect_metrics():
-    hostname = platform.node()
-    cpu = psutil.cpu_percent(interval=1)
-    mem = psutil.virtual_memory()
-    disk = psutil.disk_usage("/")
-    net = psutil.net_io_counters()
-
-    return {
-        "hostname": hostname,
-        "cpu_percent": cpu,
-        "memory_percent": mem.percent,
-        "memory_used_mb": mem.used / (1024 * 1024),
-        "disk_percent": disk.percent,
-        "disk_used_mb": disk.used / (1024 * 1024),
-        "network_rx_mb": net.bytes_recv / (1024 * 1024),
-        "network_tx_mb": net.bytes_sent / (1024 * 1024),
-        "recorded_at": datetime.utcnow(),
-    }
 
 
 def save_metrics(metrics):
@@ -81,38 +43,61 @@ def save_metrics(metrics):
         print(f"[RESOURCE] DB save failed: {e}")
 
 
-def check_alerts(metrics):
-    alerts = []
-    if metrics["cpu_percent"] > CPU_ALERT_THRESHOLD:
-        alerts.append(("CPU", metrics["cpu_percent"], CPU_ALERT_THRESHOLD))
-    if metrics["memory_percent"] > MEMORY_ALERT_THRESHOLD:
-        alerts.append(("MEMORY", metrics["memory_percent"], MEMORY_ALERT_THRESHOLD))
-    if metrics["disk_percent"] > DISK_ALERT_THRESHOLD:
-        alerts.append(("DISK", metrics["disk_percent"], DISK_ALERT_THRESHOLD))
-
-    for name, value, threshold in alerts:
-        msg = (
-            f"[X] <b>RESOURCE ALERT</b>\n"
-            f"Resource: {name}\n"
-            f"Value: {value:.1f}% | Threshold: {threshold:.0f}%\n"
-            f"Host: {metrics['hostname']}"
-        )
-        send_telegram(msg)
-        print(f"[RESOURCE] Alert: {name} = {value:.1f}%")
+def save_alert(alert_name, message):
+    try:
+        conn = get_conn()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO alert_log (alert_type, alert_name, severity, source, message, triggered_at)
+            VALUES ('system', %s, 'warning', 'resource-monitor', %s, NOW())
+        """, (alert_name, message))
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        print(f"[RESOURCE] DB alert failed: {e}")
 
 
 def monitor_loop():
     print(f"[RESOURCE] Starting resource monitor (interval={POLL_INTERVAL}s)")
     while True:
         try:
-            metrics = collect_metrics()
+            hostname = platform.node()
+            cpu = psutil.cpu_percent(interval=1)
+            mem = psutil.virtual_memory()
+            disk = psutil.disk_usage("/")
+            net = psutil.net_io_counters()
+
+            metrics = {
+                "hostname": hostname,
+                "cpu_percent": cpu,
+                "memory_percent": mem.percent,
+                "memory_used_mb": round(mem.used / (1024 * 1024), 2),
+                "disk_percent": disk.percent,
+                "disk_used_mb": round(disk.used / (1024 * 1024), 2),
+                "network_rx_mb": round(net.bytes_recv / (1024 * 1024), 2),
+                "network_tx_mb": round(net.bytes_sent / (1024 * 1024), 2),
+                "recorded_at": datetime.utcnow(),
+            }
+
             save_metrics(metrics)
-            check_alerts(metrics)
-            print(f"[RESOURCE] CPU={metrics['cpu_percent']:.1f}% "
-                  f"RAM={metrics['memory_percent']:.1f}% "
-                  f"Disk={metrics['disk_percent']:.1f}%")
+
+            for name, val, threshold in [
+                ("CPU", cpu, 90),
+                ("MEMORY", mem.percent, 90),
+                ("DISK", disk.percent, 90),
+            ]:
+                if val > threshold:
+                    alert_msg = (
+                        f"[SYSTEM] RESOURCE ALERT — {name} {val:.1f}%\n"
+                        f"Threshold: {threshold:.0f}% | Host: {hostname}"
+                    )
+                    save_alert(f"{name} THRESHOLD EXCEEDED", alert_msg)
+                    print(f"[RESOURCE] Alert logged: {name} = {val:.1f}%")
+
         except Exception as e:
             print(f"[RESOURCE] Error: {e}")
+
         time.sleep(POLL_INTERVAL)
 
 

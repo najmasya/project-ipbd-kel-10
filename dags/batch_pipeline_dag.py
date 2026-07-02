@@ -1,6 +1,8 @@
+import sys
+sys.path.insert(0, "/opt/airflow/src")
+
 from datetime import datetime, timedelta
 from airflow import DAG
-from airflow.operators.python import PythonOperator
 from airflow.operators.bash import BashOperator
 from airflow.utils.dates import days_ago
 from alert_utils import alert_on_failure, alert_on_success
@@ -16,6 +18,8 @@ default_args = {
     "on_success_callback": alert_on_success,
 }
 
+PYTHON_EXEC = "docker exec ipbd-airflow-webserver python /opt/airflow/src/batch"
+
 with DAG(
     dag_id="batch_pipeline",
     default_args=default_args,
@@ -26,20 +30,19 @@ with DAG(
     tags=["batch", "ingestion"],
 ) as dag:
 
-    ingest_inflasi = PythonOperator(
+    ingest_inflasi = BashOperator(
         task_id="ingest_inflasi",
-        python_callable=__import__("src.batch.ingest_inflasi", fromlist=["ingest_inflasi"]).ingest_inflasi,
-        op_kwargs={"year": datetime.now().year},
+        bash_command=f"{PYTHON_EXEC}/ingest_inflasi.py",
     )
 
-    ingest_kurs = PythonOperator(
+    ingest_kurs = BashOperator(
         task_id="ingest_kurs",
-        python_callable=__import__("src.batch.ingest_kurs", fromlist=["ingest_kurs_usd_idr"]).ingest_kurs_usd_idr,
+        bash_command=f"{PYTHON_EXEC}/ingest_kurs.py",
     )
 
-    ingest_emas = PythonOperator(
+    ingest_emas = BashOperator(
         task_id="ingest_emas",
-        python_callable=__import__("src.batch.ingest_emas", fromlist=["ingest_gold_price"]).ingest_gold_price,
+        bash_command=f"{PYTHON_EXEC}/ingest_emas.py",
     )
 
     log_success = BashOperator(

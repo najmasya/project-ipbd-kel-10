@@ -8,8 +8,6 @@ from datetime import datetime
 
 sys.path.insert(0, "/app")
 
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 CHECK_INTERVAL = int(os.getenv("HEALTH_CHECK_INTERVAL", "60"))
 RESOURCE_INTERVAL = int(os.getenv("RESOURCE_POLL_INTERVAL", "30"))
 
@@ -35,20 +33,6 @@ POSTGRES_PASS = os.getenv("POSTGRES_PASSWORD", "ipbd_pass")
 POSTGRES_DB = os.getenv("POSTGRES_DB", "pipeline_db")
 
 service_status_cache = {}
-
-
-def send_telegram(message: str):
-    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
-        return
-    try:
-        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-        requests.post(url, json={
-            "chat_id": TELEGRAM_CHAT_ID,
-            "text": message,
-            "parse_mode": "HTML",
-        }, timeout=10)
-    except Exception as e:
-        print(f"[HEALTH] Telegram error: {e}")
 
 
 def check_tcp(host, port, timeout=5):
@@ -110,12 +94,10 @@ def health_check_loop():
 
             if was_up and not is_up:
                 msg = (
-                    f"[X] <b>SERVICE DOWN</b>\n"
-                    f"Service: {svc['name']}\n"
+                    f"[SYSTEM] SERVICE DOWN — {svc['name']}\n"
                     f"Host: {svc['host']}:{svc['port']}\n"
                     f"Time: {datetime.utcnow().isoformat()}"
                 )
-                send_telegram(msg)
                 save_to_db("alert_log", {
                     "alert_type": "system",
                     "alert_name": f"{svc['name']} DOWN",
@@ -124,14 +106,13 @@ def health_check_loop():
                     "message": msg,
                     "triggered_at": datetime.utcnow(),
                 })
+                print(f"[HEALTH] {svc['name']} DOWN — logged to DB")
 
             elif not was_up and is_up:
                 msg = (
-                    f"[OK] <b>SERVICE RECOVERED</b>\n"
-                    f"Service: {svc['name']}\n"
+                    f"[SYSTEM] SERVICE RECOVERED — {svc['name']}\n"
                     f"Time: {datetime.utcnow().isoformat()}"
                 )
-                send_telegram(msg)
                 save_to_db("alert_log", {
                     "alert_type": "system",
                     "alert_name": f"{svc['name']} RECOVERED",
@@ -140,6 +121,7 @@ def health_check_loop():
                     "message": msg,
                     "triggered_at": datetime.utcnow(),
                 })
+                print(f"[HEALTH] {svc['name']} RECOVERED — logged to DB")
 
         time.sleep(CHECK_INTERVAL)
 
@@ -181,12 +163,19 @@ def resource_monitor_loop():
                 ("DISK", disk.percent, 90),
             ]:
                 if val > threshold:
-                    send_telegram(
-                        f"[X] <b>RESOURCE ALERT</b>\n"
-                        f"Resource: {name}\n"
-                        f"Value: {val:.1f}% | Threshold: {threshold:.0f}%\n"
-                        f"Host: {hostname}"
+                    alert_msg = (
+                        f"[SYSTEM] RESOURCE ALERT — {name} {val:.1f}%\n"
+                        f"Threshold: {threshold:.0f}% | Host: {hostname}"
                     )
+                    save_to_db("alert_log", {
+                        "alert_type": "system",
+                        "alert_name": f"{name} THRESHOLD EXCEEDED",
+                        "severity": "warning",
+                        "source": "resource-monitor",
+                        "message": alert_msg,
+                        "triggered_at": datetime.utcnow(),
+                    })
+                    print(f"[RESOURCE] Alert: {name} = {val:.1f}% — logged to DB")
 
         except Exception as e:
             print(f"[RESOURCE] Error: {e}")

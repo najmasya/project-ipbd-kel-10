@@ -2,13 +2,16 @@ FROM apache/airflow:2.9.3
 
 USER root
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    docker.io \
+    gcc \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
+RUN curl -fsSL https://get.docker.com -o /tmp/get-docker.sh && \
+    sh /tmp/get-docker.sh && \
+    rm /tmp/get-docker.sh
+
 USER airflow
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir \
+RUN pip install --no-cache-dir \
     psycopg2-binary>=2.9.10 \
     yfinance>=0.2.60 \
     requests==2.31 \
