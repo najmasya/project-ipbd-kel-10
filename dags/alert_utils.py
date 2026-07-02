@@ -25,15 +25,12 @@ def alert_on_failure(context):
     dag_id = context.get("dag_run").dag_id if context.get("dag_run") else "unknown"
     task_id = context.get("task_instance").task_id if context.get("task_instance") else "unknown"
     reason = context.get("exception", "No exception detail")
-    log_url = context.get("task_instance").log_url if context.get("task_instance") else ""
 
     msg = (
-        f"[X] <b>PIPELINE FAILED</b>\n"
-        f"DAG: {dag_id}\n"
-        f"Task: {task_id}\n"
+        f"[X] [SYSTEM] PIPELINE FAILED\n"
+        f"DAG: {dag_id} | Task: {task_id}\n"
         f"Time: {datetime.utcnow().isoformat()}\n"
-        f"Reason: {reason}\n"
-        f"Logs: {log_url}"
+        f"Reason: {reason}"
     )
     send_telegram(msg)
 
@@ -41,7 +38,7 @@ def alert_on_failure(context):
 def alert_on_success(context):
     dag_id = context.get("dag_run").dag_id if context.get("dag_run") else "unknown"
     msg = (
-        f"[OK] <b>PIPELINE SUCCESS</b>\n"
+        f"[OK] [SYSTEM] PIPELINE SUCCESS\n"
         f"DAG: {dag_id}\n"
         f"Time: {datetime.utcnow().isoformat()}"
     )

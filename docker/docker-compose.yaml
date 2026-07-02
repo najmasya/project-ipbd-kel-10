@@ -330,6 +330,7 @@ services:
     volumes:
       - ../docker/grafana/datasources:/etc/grafana/provisioning/datasources
       - ../docker/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ../docker/grafana/notifiers:/etc/grafana/provisioning/notifiers
     networks:
       - ipbd-net
 

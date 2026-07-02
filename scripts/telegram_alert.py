@@ -25,9 +25,7 @@ def send_telegram(message: str):
 def send_system_alert(service: str, status: str, detail: str = ""):
     icon = "[OK]" if status == "healthy" else "[!]" if status == "warning" else "[X]"
     msg = (
-        f"{icon} <b>SYSTEM ALERT</b>\n"
-        f"Service: {service}\n"
-        f"Status: {status}\n"
+        f"{icon} [SYSTEM] {service} — {status.upper()}\n"
         f"Detail: {detail}"
     )
     send_telegram(msg)
@@ -36,8 +34,7 @@ def send_system_alert(service: str, status: str, detail: str = ""):
 def send_business_alert(metric: str, value: float, threshold: float, direction: str):
     arrow = "^" if direction == "above" else "v"
     msg = (
-        f" <b>BUSINESS ALERT</b>\n"
-        f"Metric: {metric}\n"
+        f" [BUSINESS] {metric}\n"
         f"Value: {value:.2f} {arrow} Threshold: {threshold:.2f}\n"
         f"Condition: Price {direction} threshold"
     )
@@ -47,9 +44,8 @@ def send_business_alert(metric: str, value: float, threshold: float, direction: 
 def send_pipeline_alert(dag_name: str, task_name: str, status: str, reason: str = ""):
     icon = "[OK]" if status == "success" else "[X]"
     msg = (
-        f"{icon} <b>PIPELINE {status.upper()}</b>\n"
-        f"DAG: {dag_name}\n"
-        f"Task: {task_name}\n"
+        f"{icon} [SYSTEM] PIPELINE {status.upper()}\n"
+        f"DAG: {dag_name} | Task: {task_name}\n"
         f"Reason: {reason}"
     )
     send_telegram(msg)
@@ -57,10 +53,34 @@ def send_pipeline_alert(dag_name: str, task_name: str, status: str, reason: str 
 
 def send_resource_alert(resource: str, value: float, threshold: float, host: str = ""):
     msg = (
-        f"[X] <b>RESOURCE ALERT</b>\n"
-        f"Resource: {resource}\n"
-        f"Value: {value:.1f}% | Threshold: {threshold:.0f}%\n"
-        f"Host: {host}"
+        f"[X] [SYSTEM] RESOURCE ALERT — {resource} {value:.1f}%\n"
+        f"Threshold: {threshold:.0f}% | Host: {host}"
+    )
+    send_telegram(msg)
+
+
+def send_business_xauusd_spike(symbol: str, price_change: float, threshold: float):
+    msg = (
+        f" [BUSINESS] XAUUSD Spike — Symbol: {symbol}\n"
+        f"Price Change: {price_change:+.2f} | Threshold: {threshold:+.2f}"
+    )
+    send_telegram(msg)
+
+
+def send_business_kurs_spike(kurs_change: float, threshold: float):
+    msg = (
+        f" [BUSINESS] Kurs USD/IDR Spike\n"
+        f"Change: {kurs_change:+.2f}% | Threshold: {threshold:+.2f}%"
+    )
+    send_telegram(msg)
+
+
+def send_business_gold_anomaly(price: float, lower: float, upper: float):
+    direction = "above upper" if price > upper else "below lower"
+    msg = (
+        f" [BUSINESS] Gold Price Anomaly\n"
+        f"Price: {price:.2f} | Bounds: [{lower:.2f}, {upper:.2f}]\n"
+        f"Condition: Price is {direction} bound"
     )
     send_telegram(msg)
 
@@ -69,6 +89,7 @@ if __name__ == "__main__":
     import sys
     if len(sys.argv) > 1 and sys.argv[1] == "test":
         send_system_alert("PostgreSQL", "healthy")
-        send_business_alert("XAUUSD Price", 1950.5, 1900.0, "above")
+        send_business_alert("Gold Price Prediction", 125000.0, 120000.0, "above")
+        send_business_xauusd_spike("XAUUSDc", 2.5, 2.0)
     else:
         print("Usage: python telegram_alert.py test")
