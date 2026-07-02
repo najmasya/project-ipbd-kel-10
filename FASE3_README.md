@@ -42,12 +42,19 @@ MinIO silver-streaming/xauusd_ohlc/ (OHLC per menit saat MT5 aktif)
 | Grafana | http://localhost:3001 (admin/admin) | Monitoring + Alerting |
 
 ### Alert System ✅
-| Alert | Trigger | Channel |
-|---|---|---|
-| Pipeline failure | Airflow DAG gagal | Telegram @ipbd_alert_bot |
-| Service down | PostgreSQL/MinIO/Kafka/Spark mati | Telegram |
-| Resource > 90% | CPU/RAM/Disk | Telegram |
-| Semua log | Pipeline logs | PostgreSQL `pipeline_logs` |
+Arsitektur 2 kategori, 1 bot `@ipbd_alert_bot`:
+
+```
+[SYSTEM] Alert ──→ health-checker insert ke DB ──→ Grafana query ──→ Telegram
+[BUSINESS] Alert ──→ Python (inference.py) ──→ Telegram langsung
+```
+
+| Kategori | Alert | Engine | Cara Kirim |
+|---|---|---|---|
+| `[SYSTEM]` | Service DOWN/UP, CPU/RAM > 90% | health-checker → DB → Grafana | Grafana notifier ke Telegram |
+| `[SYSTEM]` | DAG Airflow gagal/sukses | `alert_utils.py` callback | Langsung ke Telegram |
+| `[BUSINESS]` | XAUUSD spike, Kurs spike, Gold anomaly | `telegram_alert.py` | Langsung dari Python code |
+| `[BUSINESS]` | Prediksi harga > threshold | `inference.py` panggil `send_business_alert()` | Langsung ke Telegram |
 
 ---
 
@@ -175,9 +182,46 @@ docker exec ipbd-spark-master /opt/spark/bin/spark-submit \
 - Simpan hasil ke tabel `gold_price_predictions`
 
 ### D. Business Alert
-Di `scripts/telegram_alert.py`, panggil `send_business_alert()` untuk:
-- Prediksi harga emas melebihi threshold tertentu
-- Anomali XAUUSD (volatilitas tinggi)
+Di code kamu, import dan panggil fungsi dari `scripts.telegram_alert.py`:
+
+```python
+from scripts.telegram_alert import (
+    send_business_alert,          # Prediksi harga > threshold
+    send_business_xauusd_spike,   # XAUUSD lonjakan > 2%
+    send_business_kurs_spike,     # Kurs USD/IDR berubah > 2%
+    send_business_gold_anomaly,   # Harga emas di luar batas wajar
+)
+
+# Contoh:
+if predicted_price > 120000:
+    send_business_alert("Gold Price Prediction", predicted_price, 120000, "above")
+
+if abs(xauusd_change) > 2.0:
+    send_business_xauusd_spike("XAUUSDc", xauusd_change, 2.0)
+
+if abs(kurs_change_pct) > 2.0:
+    send_business_kurs_spike(kurs_change_pct, 2.0)
+
+if gold_price < 500000 or gold_price > 2000000:
+    send_business_gold_anomaly(gold_price, 500000, 2000000)
+```
+
+**Format pesan di Telegram:**
+```
+[BUSINESS] Gold Price Prediction
+Value: 125000.00 ^ Threshold: 120000.00
+Condition: Price above threshold
+
+[BUSINESS] XAUUSD Spike — Symbol: XAUUSDc
+Price Change: +2.50 | Threshold: +2.00
+
+[BUSINESS] Kurs USD/IDR Spike
+Change: +3.10% | Threshold: +2.00%
+
+[BUSINESS] Gold Price Anomaly
+Price: 175000.00 | Bounds: [500000.00, 2000000.00]
+Condition: Price is above upper bound
+```
 
 ---
 
