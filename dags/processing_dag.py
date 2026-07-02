@@ -18,7 +18,6 @@ SPARK_ARGS = (
     "--conf spark.hadoop.fs.s3a.connection.ssl.enabled=false "
     "--conf spark.sql.parquet.outputTimestampType=TIMESTAMP_MICROS "
     "--conf spark.sql.legacy.parquet.nanosAsLong=true "
-    "--packages org.apache.hadoop:hadoop-aws:3.3.4,org.postgresql:postgresql:42.7.1 "
 )
 
 default_args = {

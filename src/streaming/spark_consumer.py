@@ -64,6 +64,7 @@ df_parsed = (
 
 df_ohlc = (
     df_parsed
+    .withWatermark("event_time", "1 minute")
     .groupBy(
         col("symbol"),
         window(col("event_time"), "1 minute"),

@@ -109,7 +109,7 @@ services:
   # Spark — Master
   # ==========================================
   spark-master:
-    image: apache/spark:3.5.3
+    image: ipbd-spark:custom
     container_name: ipbd-spark-master
     user: root
     environment:
@@ -132,7 +132,7 @@ services:
   # Spark — Worker
   # ==========================================
   spark-worker:
-    image: apache/spark:3.5.3
+    image: ipbd-spark:custom
     container_name: ipbd-spark-worker
     user: root
     depends_on:

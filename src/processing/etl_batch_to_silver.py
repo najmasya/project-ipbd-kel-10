@@ -1,6 +1,6 @@
 import os
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, when, to_date, coalesce, lit
+from pyspark.sql.functions import col, when, to_date, coalesce, lit, expr
 
 MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "http://minio:9000")
 MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "minio_admin")
@@ -39,7 +39,7 @@ def clean_exchange_rate():
     df = spark.read.parquet(f"{BRONZE_BASE}/exchange_rate/")
     df_clean = (
         df
-        .withColumn("date", to_date("Date"))
+        .withColumn("date", to_date(expr("cast(cast(Date/1000000000 as long) as timestamp)")))
         .filter(col("Close").isNotNull())
         .dropDuplicates(["date"])
         .select(
@@ -60,7 +60,7 @@ def clean_gold_price():
     df = spark.read.parquet(f"{BRONZE_BASE}/gold_price/")
     df_clean = (
         df
-        .withColumn("date", to_date("Date"))
+        .withColumn("date", to_date(expr("cast(cast(Date/1000000000 as long) as timestamp)")))
         .filter(col("gold_price_rp_per_gram").isNotNull())
         .dropDuplicates(["date"])
         .select(
