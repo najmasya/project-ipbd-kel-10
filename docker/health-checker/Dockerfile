@@ -1,14 +1,13 @@
-FROM python:3.11-alpine
+FROM python:3.11-slim
 
-RUN apk add --no-cache \
-    postgresql-dev \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
-    musl-dev \
-    linux-headers
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir \
-    psycopg2-binary==2.9 \
+    psycopg2-binary>=2.9.10 \
     requests==2.31 \
     psutil==6.1.1
 
