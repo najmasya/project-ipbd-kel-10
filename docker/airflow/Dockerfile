@@ -19,4 +19,8 @@ RUN pip install --no-cache-dir \
     numpy>=1.24 \
     minio==7.1 \
     python-dotenv==1.0 \
-    pyarrow>=14.0
+    pyarrow>=14.0 \
+    mlflow==2.10.2 \
+    scikit-learn \
+    sqlalchemy \
+    s3fs

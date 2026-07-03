@@ -1,14 +1,23 @@
 import os
 import uuid
-import mlflow
-import mlflow.sklearn
+import joblib
 import pandas as pd
 import numpy as np
-from sklearn.model_selection import TimeSeriesSplit
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestRegressor
-from src.ml.utils import setup_mlflow, read_dataset, get_spark_session, save_predictions_to_postgres
+try:
+    from src.ml.utils import read_dataset, save_predictions_to_postgres
+except ImportError:
+    from ml.utils import read_dataset, save_predictions_to_postgres
+
+try:
+    import mlflow
+    HAS_MLFLOW = True
+except ImportError:
+    HAS_MLFLOW = False
+
+MODELS_DIR = os.path.join(os.path.dirname(__file__), "models")
 
 FEATURES = [
     "inflation_rate",
@@ -20,9 +29,10 @@ FEATURES = [
     "inflasi_lag_1",
     "inflasi_lag_2",
     "gold_lag_1",
+    "gold_lag_2",
     "bulan_ke",
 ]
-TARGET = "target_inflasi_bulan_depan"
+TARGET = "target_gold_rp_bulan_depan"
 
 MODELS = {
     "linear_regression": LinearRegression(),
@@ -39,28 +49,25 @@ MODELS = {
 def train_model(model_name: str, model, X_train, y_train, X_test, y_test):
     run_id = str(uuid.uuid4())[:8]
 
-    with mlflow.start_run(run_name=f"{model_name}_{run_id}") as run:
-        model.fit(X_train, y_train)
-        y_pred = model.predict(X_test)
+    model.fit(X_train, y_train)
+    y_pred = model.predict(X_test)
 
-        mae = mean_absolute_error(y_test, y_pred)
-        rmse = np.sqrt(mean_squared_error(y_test, y_pred))
-        mape = np.mean(np.abs((y_test - y_pred) / (y_test + 1e-10))) * 100
+    mae = mean_absolute_error(y_test, y_pred)
+    rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+    mape = np.mean(np.abs((y_test - y_pred) / (y_test + 1e-10))) * 100
 
-        mlflow.log_params(model.get_params())
-        mlflow.log_metrics({"mae": mae, "rmse": rmse, "mape": mape})
-        mlflow.sklearn.log_model(model, artifact_path="model", registered_model_name="gold_price_predictor")
+    print(f"[{model_name}] MAE={mae:.4f}, RMSE={rmse:.4f}, MAPE={mape:.2f}%")
 
-        print(f"[{model_name}] MAE={mae:.4f}, RMSE={rmse:.4f}, MAPE={mape:.2f}%")
+    os.makedirs(MODELS_DIR, exist_ok=True)
+    fpath = os.path.join(MODELS_DIR, f"{model_name}.pkl")
+    joblib.dump(model, fpath)
+    print(f"Model saved to {fpath}")
 
-        return model, y_pred, run.info.run_id
+    return model, y_pred, run_id
 
 
 def main():
-    experiment_id = setup_mlflow()
-    spark = get_spark_session("ML_Training")
-    df = read_dataset(spark)
-    spark.stop()
+    df = read_dataset()
 
     df = df.dropna(subset=FEATURES + [TARGET])
     X = df[FEATURES].values
@@ -77,7 +84,7 @@ def main():
 
         pred_df = pd.DataFrame({
             "prediction_date": pd.Timestamp.today().date(),
-            "target_month": df.iloc[split_idx:]["month_key"].values,
+            "target_month": pd.to_datetime(df.iloc[split_idx:]["month_key"].values + "-01").date,
             "model_name": name,
             "model_version": run_id,
             "predicted_value": y_pred,

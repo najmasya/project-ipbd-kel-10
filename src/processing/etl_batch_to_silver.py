@@ -1,6 +1,6 @@
 import os
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, when, to_date, coalesce, lit, expr
+from pyspark.sql.functions import col, when, to_date, coalesce, lit, expr, concat, lpad
 
 MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "http://minio:9000")
 MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "minio_admin")
@@ -26,7 +26,11 @@ def clean_inflation():
     df = spark.read.parquet(f"{BRONZE_BASE}/inflation/parquet/")
     df_clean = (
         df
-        .withColumn("month_date", to_date(col("year").cast("string") + "-" + col("month").cast("string") + "-01"))
+        .withColumn("month_date", to_date(
+            concat(col("year").cast("string"), lit("-"),
+                   lpad(col("month").cast("string"), 2, "0"),
+                   lit("-01"))
+        ))
         .filter(col("inflation_rate").isNotNull())
         .dropDuplicates(["year", "month"])
         .select("month_date", "year", "month", "inflation_rate", "ingested_at")

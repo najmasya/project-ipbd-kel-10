@@ -13,7 +13,7 @@ st.set_page_config(
 require_auth()
 
 TRINO_HOST = "trino"
-TRINO_PORT = 8082
+TRINO_PORT = 8080
 
 
 @st.cache_data(ttl=300)
@@ -64,17 +64,23 @@ with tab1:
 
         kol1, kol2, kol3 = st.columns(3)
         latest = df_market.iloc[-1]
+
+        def safe_fmt(val, fmt_str, suffix=""):
+            if val is None or (isinstance(val, float) and np.isnan(val)):
+                return "N/A"
+            return fmt_str.format(val) + suffix
+
         kol1.metric(
             "💍 Harga Emas (Rp/gram)",
-            f"Rp {latest['gold_price_rp']:,.0f}",
+            safe_fmt(latest.get("gold_price_rp"), "Rp {:,.0f}"),
         )
         kol2.metric(
             "💱 USD/IDR",
-            f"Rp {latest['usd_idr_rate']:,.0f}",
+            safe_fmt(latest.get("usd_idr_rate"), "Rp {:,.0f}"),
         )
         kol3.metric(
             "📊 Inflasi",
-            f"{latest['inflation_rate']:.2f}%",
+            safe_fmt(latest.get("inflation_rate"), "{:.2f}", "%"),
         )
 
         st.subheader("Harga Emas & Kurs Rupiah — 1 Tahun Terakhir")
@@ -117,17 +123,20 @@ with tab2:
 
         if not df_model.empty:
             latest_pred = df_model.iloc[-1]
-            if pd.notna(latest_pred["actual_value"]):
-                delta_val = latest_pred["predicted_value"] - latest_pred["actual_value"]
+            pred_val = latest_pred["predicted_value"]
+            if pd.isna(pred_val):
+                st.metric(f"🔮 Prediksi Bulan Depan — {selected_model}", "N/A")
+            elif pd.notna(latest_pred["actual_value"]):
+                delta_val = pred_val - latest_pred["actual_value"]
                 st.metric(
                     f"🔮 Prediksi Bulan Depan — {selected_model}",
-                    f"Rp {latest_pred['predicted_value']:,.0f}",
+                    f"Rp {pred_val:,.0f}",
                     delta=f"vs aktual: {delta_val:+,.0f}",
                 )
             else:
                 st.metric(
                     f"🔮 Prediksi Bulan Depan — {selected_model}",
-                    f"Rp {latest_pred['predicted_value']:,.0f}",
+                    f"Rp {pred_val:,.0f}",
                 )
 
         st.subheader("Actual vs Prediksi + Confidence Band")

@@ -1,11 +1,14 @@
 import os
-import mlflow
+import joblib
 import pandas as pd
 import numpy as np
 from datetime import datetime, date
-from src.ml.utils import setup_mlflow, get_spark_session, save_predictions_to_postgres
+try:
+    from src.ml.utils import save_predictions_to_postgres, read_latest_features
+except ImportError:
+    from ml.utils import save_predictions_to_postgres, read_latest_features
 
-MLFLOW_MODEL_NAME = "gold_price_predictor"
+MODELS_DIR = os.path.join(os.path.dirname(__file__), "models")
 FEATURES = [
     "inflation_rate",
     "avg_usd_idr",
@@ -16,52 +19,26 @@ FEATURES = [
     "inflasi_lag_1",
     "inflasi_lag_2",
     "gold_lag_1",
+    "gold_lag_2",
     "bulan_ke",
 ]
 
 
 def load_latest_model():
-    client = mlflow.tracking.MlflowClient()
-    try:
-        latest_versions = client.get_latest_versions(MLFLOW_MODEL_NAME, stages=["Production"])
-        if not latest_versions:
-            latest_versions = client.get_latest_versions(MLFLOW_MODEL_NAME, stages=["None"])
-        if not latest_versions:
-            raise ValueError("No model versions found")
-
-        model_version = latest_versions[0]
-        model_uri = f"models:/{MLFLOW_MODEL_NAME}/{model_version.version}"
-        model = mlflow.sklearn.load_model(model_uri)
-        print(f"Loaded model: {MLFLOW_MODEL_NAME} v{model_version.version} (stage: {model_version.current_stage})")
-        return model, model_version.version
-    except Exception as e:
-        print(f"Could not load from registry: {e}")
-        local_paths = ["models/random_forest_inflasi.pkl", "models/linear_regression_inflasi.pkl"]
-        import joblib
-        for p in local_paths:
-            if os.path.exists(p):
-                artifact = joblib.load(p)
-                model = artifact["model"]
-                print(f"Loaded local model from {p}")
-                return model, "local"
-        raise
-
-
-def prepare_latest_features(spark):
-    df = spark.read.parquet("s3a://silver-batch/feature_engineering_dataset")
-    last_row = df.orderBy(df.month_key.desc()).limit(1).toPandas()
-    if last_row.empty:
-        raise ValueError("No feature data found")
-    X = last_row[FEATURES].values
-    return X, last_row
+    for fname in ["linear_regression.pkl", "random_forest.pkl"]:
+        fpath = os.path.join(MODELS_DIR, fname)
+        if os.path.exists(fpath):
+            model = joblib.load(fpath)
+            version = os.path.getmtime(fpath)
+            print(f"Loaded model: {fpath}")
+            return model, str(int(version))
+    raise FileNotFoundError(f"No model found in {MODELS_DIR}")
 
 
 def run_inference():
-    setup_mlflow()
-    spark = get_spark_session("ML_Inference")
     model, version = load_latest_model()
-    X, metadata = prepare_latest_features(spark)
-    spark.stop()
+    last_row = read_latest_features()
+    X = last_row[FEATURES].values
 
     prediction = model.predict(X)[0]
 
@@ -72,7 +49,7 @@ def run_inference():
     pred_df = pd.DataFrame([{
         "prediction_date": today,
         "target_month": target_month,
-        "model_name": MLFLOW_MODEL_NAME,
+        "model_name": "random_forest",
         "model_version": str(version),
         "predicted_value": round(prediction, 2),
         "actual_value": None,

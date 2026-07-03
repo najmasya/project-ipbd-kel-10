@@ -1,6 +1,5 @@
 import os
 import mlflow
-from pyspark.sql import SparkSession
 
 MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:5000")
 MLFLOW_EXPERIMENT_NAME = "gold_price_forecasting"
@@ -17,18 +16,12 @@ MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "minio_admin")
 MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY", "minio_pass123")
 
 
-def get_spark_session(app_name: str = "ML_App") -> SparkSession:
-    return (
-        SparkSession.builder
-        .appName(app_name)
-        .config("spark.hadoop.fs.s3a.endpoint", MINIO_ENDPOINT)
-        .config("spark.hadoop.fs.s3a.access.key", MINIO_ACCESS_KEY)
-        .config("spark.hadoop.fs.s3a.secret.key", MINIO_SECRET_KEY)
-        .config("spark.hadoop.fs.s3a.path.style.access", "true")
-        .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
-        .config("spark.hadoop.fs.s3a.connection.ssl.enabled", "false")
-        .getOrCreate()
-    )
+def _s3_storage_options():
+    return {
+        "key": MINIO_ACCESS_KEY,
+        "secret": MINIO_SECRET_KEY,
+        "endpoint_url": MINIO_ENDPOINT,
+    }
 
 
 def setup_mlflow():
@@ -42,9 +35,21 @@ def setup_mlflow():
     return experiment_id
 
 
-def read_dataset(spark: SparkSession):
-    df = spark.read.parquet("s3a://silver-batch/feature_engineering_dataset")
-    return df.toPandas()
+def read_dataset():
+    import pandas as pd
+    return pd.read_parquet(
+        "s3://silver-batch/feature_engineering_dataset",
+        storage_options=_s3_storage_options(),
+    )
+
+
+def read_latest_features():
+    import pandas as pd
+    df = pd.read_parquet(
+        "s3://silver-batch/feature_engineering_dataset",
+        storage_options=_s3_storage_options(),
+    )
+    return df.sort_values("bulan_ke").tail(1)
 
 
 def save_predictions_to_postgres(predictions_df, table_name="gold_price_predictions"):

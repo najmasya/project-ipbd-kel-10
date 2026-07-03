@@ -1,0 +1,216 @@
+{
+  "title": "Pipeline Monitoring",
+  "uid": "pipeline-monitoring-v2",
+  "version": 1,
+  "tags": ["ipbd"],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "time": { "from": "now-7d", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "editable": true,
+  "graphTooltip": 0,
+  "templating": {
+    "list": [{
+      "name": "datasource",
+      "type": "datasource",
+      "query": "grafana-postgresql-datasource",
+      "current": { "text": "PostgreSQL", "value": "PCC52D03280B7034C" }
+    }]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Total Pipeline Runs (24h)",
+      "type": "stat",
+      "gridPos": { "h": 3, "w": 6, "x": 0, "y": 0 },
+      "targets": [{
+        "datasource": "${datasource}",
+        "format": "table",
+        "rawSql": "SELECT COUNT(*) AS value FROM pipeline_logs WHERE started_at >= NOW() - INTERVAL '24 hours'",
+        "refId": "A"
+      }],
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "textMode": "auto" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } } }
+    },
+    {
+      "id": 2,
+      "title": "Failed Runs (24h)",
+      "type": "stat",
+      "gridPos": { "h": 3, "w": 6, "x": 6, "y": 0 },
+      "targets": [{
+        "datasource": "${datasource}",
+        "format": "table",
+        "rawSql": "SELECT COUNT(*) AS value FROM pipeline_logs WHERE status = 'failed' AND started_at >= NOW() - INTERVAL '24 hours'",
+        "refId": "A"
+      }],
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "textMode": "auto" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 3 }] } } }
+    },
+    {
+      "id": 3,
+      "title": "Active Alerts",
+      "type": "stat",
+      "gridPos": { "h": 3, "w": 6, "x": 12, "y": 0 },
+      "targets": [{
+        "datasource": "${datasource}",
+        "format": "table",
+        "rawSql": "SELECT COUNT(*) AS value FROM xauusd_alerts WHERE resolved_at IS NULL",
+        "refId": "A"
+      }],
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "textMode": "auto" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 1 }, { "color": "red", "value": 5 }] } } }
+    },
+    {
+      "id": 4,
+      "title": "Pipeline Status",
+      "type": "stat",
+      "gridPos": { "h": 3, "w": 6, "x": 18, "y": 0 },
+      "targets": [{
+        "datasource": "${datasource}",
+        "format": "table",
+        "rawSql": "SELECT pipeline_status AS value FROM dashboard_metrics ORDER BY metric_date DESC LIMIT 1",
+        "refId": "A"
+      }],
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "textMode": "auto" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } } }
+    },
+    {
+      "id": 5,
+      "title": "DAG Execution Status (7 Days)",
+      "type": "barchart",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 3 },
+      "targets": [{
+        "datasource": "${datasource}",
+        "format": "table",
+        "rawSql": "SELECT DATE_TRUNC('hour', started_at) AS time, status, COUNT(*) AS value FROM pipeline_logs WHERE started_at >= NOW() - INTERVAL '7 days' GROUP BY 1, 2 ORDER BY 1",
+        "refId": "A"
+      }],
+      "options": { "orientation": "vertical", "xTickLabelRotation": -45, "xTickLabelSpacing": 0, "showValue": "auto", "stacking": "normal", "groupWidth": 0.7, "barWidth": 0.8, "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true } },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" } } }
+    },
+    {
+      "id": 6,
+      "title": "Records Processed per Run",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 3 },
+      "targets": [{
+        "datasource": "${datasource}",
+        "format": "table",
+        "rawSql": "SELECT started_at AS time, records_count AS value, pipeline_name AS metric FROM pipeline_logs WHERE started_at >= NOW() - INTERVAL '7 days' AND records_count > 0 ORDER BY started_at",
+        "refId": "A"
+      }],
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "line", "lineInterpolation": "linear", "fillOpacity": 10, "showPoints": "auto" } } }
+    },
+    {
+      "id": 7,
+      "title": "Execution Duration (ms)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 11 },
+      "targets": [{
+        "datasource": "${datasource}",
+        "format": "table",
+        "rawSql": "SELECT started_at AS time, duration_ms AS value, pipeline_name AS metric FROM pipeline_logs WHERE started_at >= NOW() - INTERVAL '7 days' AND duration_ms > 0 ORDER BY started_at",
+        "refId": "A"
+      }],
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "fieldConfig": { "defaults": { "unit": "ms", "custom": { "drawStyle": "line", "lineInterpolation": "linear", "fillOpacity": 10, "showPoints": "auto" } } }
+    },
+    {
+      "id": 8,
+      "title": "Severity Distribution (7 Days)",
+      "type": "bargauge",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 11 },
+      "targets": [{
+        "datasource": "${datasource}",
+        "format": "table",
+        "rawSql": "SELECT COALESCE(severity, 'NONE') AS metric, COUNT(*) AS value FROM pipeline_logs WHERE started_at >= NOW() - INTERVAL '7 days' GROUP BY severity ORDER BY value DESC",
+        "refId": "A"
+      }],
+      "options": { "orientation": "horizontal", "displayMode": "gradient", "showUnfilled": true, "minVizWidth": 75, "minVizHeight": 10 },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }, { "color": "green", "value": 1 }, { "color": "yellow", "value": 5 }, { "color": "orange", "value": 15 }, { "color": "red", "value": 30 }] } } }
+    },
+    {
+      "id": 9,
+      "title": "CPU Usage %",
+      "type": "timeseries",
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 19 },
+      "targets": [{
+        "datasource": "${datasource}",
+        "format": "time_series",
+        "rawSql": "SELECT recorded_at AS time, cpu_percent AS value FROM resource_metrics WHERE recorded_at >= NOW() - INTERVAL '24 hours' ORDER BY recorded_at",
+        "refId": "A"
+      }],
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "single" } },
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100, "custom": { "drawStyle": "line", "lineInterpolation": "linear", "fillOpacity": 20, "showPoints": "never" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 70 }, { "color": "red", "value": 90 }] } } }
+    },
+    {
+      "id": 10,
+      "title": "Memory Usage %",
+      "type": "timeseries",
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 19 },
+      "targets": [{
+        "datasource": "${datasource}",
+        "format": "time_series",
+        "rawSql": "SELECT recorded_at AS time, memory_percent AS value FROM resource_metrics WHERE recorded_at >= NOW() - INTERVAL '24 hours' ORDER BY recorded_at",
+        "refId": "A"
+      }],
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "single" } },
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100, "custom": { "drawStyle": "line", "lineInterpolation": "linear", "fillOpacity": 20, "showPoints": "never" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 70 }, { "color": "red", "value": 90 }] } } }
+    },
+    {
+      "id": 11,
+      "title": "Disk Usage %",
+      "type": "timeseries",
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 19 },
+      "targets": [{
+        "datasource": "${datasource}",
+        "format": "time_series",
+        "rawSql": "SELECT recorded_at AS time, disk_percent AS value FROM resource_metrics WHERE recorded_at >= NOW() - INTERVAL '24 hours' ORDER BY recorded_at",
+        "refId": "A"
+      }],
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "single" } },
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100, "custom": { "drawStyle": "line", "lineInterpolation": "linear", "fillOpacity": 20, "showPoints": "never" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 70 }, { "color": "red", "value": 90 }] } } }
+    },
+    {
+      "id": 12,
+      "title": "Recent Pipeline Logs",
+      "type": "table",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 25 },
+      "targets": [{
+        "datasource": "${datasource}",
+        "format": "table",
+        "rawSql": "SELECT started_at AS time, pipeline_name, COALESCE(task_name, '-') AS task, status, COALESCE(severity, '-') AS severity, message, records_count, duration_ms FROM pipeline_logs ORDER BY started_at DESC LIMIT 50",
+        "refId": "A"
+      }],
+      "options": { "showHeader": true },
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "inspect": false } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "severity" }, "properties": [{ "id": "custom.cellOptions", "value": { "type": "color-background", "mode": "basic" } }] },
+          { "matcher": { "id": "byName", "options": "status" }, "properties": [{ "id": "custom.cellOptions", "value": { "type": "color-background", "mode": "basic" } }] }
+        ]
+      }
+    },
+    {
+      "id": 13,
+      "title": "Active Alerts",
+      "type": "table",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 25 },
+      "targets": [{
+        "datasource": "${datasource}",
+        "format": "table",
+        "rawSql": "SELECT occurred_at AS time, alert_type, alert_name, severity, symbol, current_value, threshold_value, message FROM xauusd_alerts WHERE resolved_at IS NULL ORDER BY occurred_at DESC LIMIT 20",
+        "refId": "A"
+      }],
+      "options": { "showHeader": true },
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "auto" } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "severity" }, "properties": [{ "id": "custom.cellOptions", "value": { "type": "color-background", "mode": "basic" } }] }
+        ]
+      }
+    }
+  ]
+}

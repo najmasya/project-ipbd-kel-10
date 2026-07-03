@@ -8,7 +8,7 @@ from pyspark.sql.types import (
     StructType, StructField, StringType, DoubleType, LongType,
 )
 
-KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
+KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9094")
 KAFKA_TOPIC = os.getenv("KAFKA_TOPIC_XAUUSD", "xauusd_raw")
 MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "http://minio:9000")
 MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "minio_admin")
