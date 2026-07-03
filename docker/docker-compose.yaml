@@ -199,6 +199,7 @@ services:
   airflow-webserver:
     image: ipbd-airflow:custom
     container_name: ipbd-airflow-webserver
+    env_file: ../.env
     depends_on:
       postgres:
         condition: service_healthy
@@ -209,8 +210,6 @@ services:
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
       AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
       PYTHONPATH: /opt/airflow/src:/opt/airflow/dags:/opt/airflow/scripts
-      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
-      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
       POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}
       POSTGRES_USER: ${POSTGRES_USER:-ipbd_user}
@@ -242,6 +241,7 @@ services:
   airflow-scheduler:
     image: ipbd-airflow:custom
     container_name: ipbd-airflow-scheduler
+    env_file: ../.env
     depends_on:
       postgres:
         condition: service_healthy
@@ -252,8 +252,6 @@ services:
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
       AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
       PYTHONPATH: /opt/airflow/src:/opt/airflow/dags:/opt/airflow/scripts
-      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
-      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
       POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}
       POSTGRES_USER: ${POSTGRES_USER:-ipbd_user}
@@ -362,12 +360,11 @@ services:
     build:
       context: ../docker/health-checker
     container_name: ipbd-health-checker
+    env_file: ../.env
     depends_on:
       postgres:
         condition: service_healthy
     environment:
-      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
-      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       POSTGRES_USER: ${POSTGRES_USER:-ipbd_user}
