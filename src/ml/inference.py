@@ -37,7 +37,7 @@ def load_latest_model():
             model_uri = f"models:/{MLFLOW_MODEL_NAME}/{v.version}"
             model = mlflow.sklearn.load_model(model_uri)
             print(f"Loaded from MLflow: {MLFLOW_MODEL_NAME} v{v.version}")
-            return model, str(v.version)
+            return model, str(v.version), MLFLOW_MODEL_NAME
     except Exception as e:
         print(f"MLflow registry failed: {e}")
 
@@ -45,13 +45,14 @@ def load_latest_model():
         fpath = os.path.join(MODELS_DIR, fname)
         if os.path.exists(fpath):
             model = joblib.load(fpath)
+            model_name = fname.replace(".pkl", "")
             print(f"Loaded from local: {fpath}")
-            return model, "local"
+            return model, "local", model_name
     raise FileNotFoundError(f"No model found")
 
 
 def run_inference():
-    model, version = load_latest_model()
+    model, version, model_name = load_latest_model()
     last_row = read_latest_features()
     X = last_row[FEATURES].values
 
@@ -64,7 +65,7 @@ def run_inference():
     pred_df = pd.DataFrame([{
         "prediction_date": today,
         "target_month": target_month,
-        "model_name": "random_forest",
+        "model_name": model_name,
         "model_version": str(version),
         "predicted_value": round(prediction, 2),
         "actual_value": None,

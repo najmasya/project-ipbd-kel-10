@@ -1,0 +1,12 @@
+*.pkl binary
+*.py text diff=python
+*.yaml text
+*.yml text
+*.sql text
+*.sh text
+*.md text
+*.txt text
+*.json text
+*.conf text
+*.properties text
+*.env.example text
