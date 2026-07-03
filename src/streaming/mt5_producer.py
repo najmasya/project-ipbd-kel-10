@@ -77,6 +77,10 @@ def stream_ticks():
             )
             prev_mid = mid
 
+            if prev_mid and mid > 0 and abs(price_change / mid * 100) > 2.0:
+                from scripts.telegram_alert import send_business_xauusd_spike
+                send_business_xauusd_spike(MT5_SYMBOL, price_change, 2.0)
+
         time.sleep(POLL_INTERVAL)
 
 

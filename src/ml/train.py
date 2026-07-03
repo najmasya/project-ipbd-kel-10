@@ -11,13 +11,12 @@ try:
 except ImportError:
     from ml.utils import read_dataset, save_predictions_to_postgres
 
-try:
-    import mlflow
-    HAS_MLFLOW = True
-except ImportError:
-    HAS_MLFLOW = False
+import mlflow
+import mlflow.sklearn
 
 MODELS_DIR = os.path.join(os.path.dirname(__file__), "models")
+MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:5000")
+MLFLOW_MODEL_NAME = "gold_price_predictor"
 
 FEATURES = [
     "inflation_rate",
@@ -63,10 +62,25 @@ def train_model(model_name: str, model, X_train, y_train, X_test, y_test):
     joblib.dump(model, fpath)
     print(f"Model saved to {fpath}")
 
+    with mlflow.start_run(run_name=f"{model_name}_{run_id}"):
+        mlflow.log_params(model.get_params())
+        mlflow.log_metrics({"mae": mae, "rmse": rmse, "mape": mape})
+        mlflow.sklearn.log_model(
+            model, artifact_path="model",
+            registered_model_name=MLFLOW_MODEL_NAME,
+        )
+        print(f"Model registered to MLflow: {MLFLOW_MODEL_NAME}")
+
     return model, y_pred, run_id
 
 
 def main():
+    mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+    experiment = mlflow.get_experiment_by_name("gold_price_forecasting")
+    if experiment is None:
+        mlflow.create_experiment("gold_price_forecasting")
+    mlflow.set_experiment("gold_price_forecasting")
+
     df = read_dataset()
 
     df = df.dropna(subset=FEATURES + [TARGET])

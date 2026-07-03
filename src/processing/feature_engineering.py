@@ -93,6 +93,13 @@ def build_features():
             .withColumn("avg_xauusd_volatility", lit(0).cast("double"))
         )
 
+    merged = (
+        merged
+        .withColumn("avg_xauusd_close", coalesce(col("avg_xauusd_close"), lit(0)))
+        .withColumn("avg_xauusd_spread", coalesce(col("avg_xauusd_spread"), lit(0)))
+        .withColumn("avg_xauusd_volatility", coalesce(col("avg_xauusd_volatility"), lit(0)))
+    )
+
     merged = merged.withColumn("month_num", month(to_date(concat(col("month_key"), lit("-01")))))
     merged = merged.withColumn("year_num", year(to_date(concat(col("month_key"), lit("-01")))))
     merged = merged.withColumn("bulan_ke", col("year_num") * 12 + col("month_num"))
@@ -202,6 +209,17 @@ def insert_fact_market_daily():
             .withColumn("xauusd_avg_volatility", lit(0).cast("double"))
             .withColumn("xauusd_tick_count", lit(0).cast("bigint"))
         )
+
+    daily = (
+        daily
+        .withColumn("xauusd_open", coalesce(col("xauusd_open"), lit(0)))
+        .withColumn("xauusd_high", coalesce(col("xauusd_high"), lit(0)))
+        .withColumn("xauusd_low", coalesce(col("xauusd_low"), lit(0)))
+        .withColumn("xauusd_close", coalesce(col("xauusd_close"), lit(0)))
+        .withColumn("xauusd_avg_spread", coalesce(col("xauusd_avg_spread"), lit(0)))
+        .withColumn("xauusd_avg_volatility", coalesce(col("xauusd_avg_volatility"), lit(0)))
+        .withColumn("xauusd_tick_count", coalesce(col("xauusd_tick_count"), lit(0)))
+    )
 
     final = daily.select(
         "date",
