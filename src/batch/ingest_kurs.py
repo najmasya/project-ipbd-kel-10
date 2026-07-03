@@ -81,8 +81,35 @@ def ingest_kurs_usd_idr(start_date: str = None, end_date: str = None):
     return df
 
 
+def get_last_date_in_minio():
+    try:
+        objs = list(client.list_objects(BUCKET_BRONZE, prefix="exchange_rate/", recursive=True))
+        latest = None
+        for obj in objs:
+            if not obj.object_name.endswith(".parquet"):
+                continue
+            resp = client.get_object(BUCKET_BRONZE, obj.object_name)
+            df = pd.read_parquet(BytesIO(resp.read()))
+            if "Date" in df.columns:
+                last = df["Date"].max()
+                if latest is None or last > latest:
+                    latest = last
+        if latest is not None:
+            return pd.to_datetime(latest).date()
+        return None
+    except Exception:
+        return None
+
+
 if __name__ == "__main__":
     try:
-        ingest_kurs_usd_idr()
+        last_date = get_last_date_in_minio()
+        if last_date:
+            start = (last_date + timedelta(days=1)).isoformat()
+            print(f"Last data: {last_date}, fetching from {start}")
+        else:
+            start = (date.today() - timedelta(days=365)).isoformat()
+            print(f"No existing data, fetching from {start}")
+        ingest_kurs_usd_idr(start_date=start)
     except Exception as e:
         log_pipeline("failed", str(e), severity="FATAL")

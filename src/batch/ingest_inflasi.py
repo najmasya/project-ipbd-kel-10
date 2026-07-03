@@ -117,9 +117,26 @@ def ingest_inflasi(year: int):
     return records
 
 
+def get_years_in_minio():
+    try:
+        objs = client.list_objects(BUCKET_BRONZE, prefix="inflation/parquet/")
+        years = set()
+        for o in objs:
+            name = o.object_name.replace("inflation/parquet/inflasi_", "").replace(".parquet", "")
+            if name.isdigit():
+                years.add(int(name))
+        return years
+    except Exception:
+        return set()
+
+
 if __name__ == "__main__":
     current_year = date.today().year
+    existing_years = get_years_in_minio()
     for y in range(current_year - 8, current_year + 1):
+        if y in existing_years:
+            print(f"Skipping {y}, already ingested")
+            continue
         try:
             ingest_inflasi(y)
         except Exception as e:
