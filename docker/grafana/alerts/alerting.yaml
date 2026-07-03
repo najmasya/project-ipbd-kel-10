@@ -7,9 +7,9 @@ contactPoints:
       - uid: telegram1
         type: telegram
         settings:
-          bottoken: 8683547942:AAFoJRDrsFzaI4yghNw0uMghwVAfXvACRA0
-          chatid: 5519545800
-          parse_mode: HTML
+          bottoken: "8683547942:AAFoJRDrsFzaI4yghNw0uMghwVAfXvACRA0"
+          chatid: "5519545800"
+          parse_mode: "HTML"
 
 policies:
   - orgId: 1
@@ -28,12 +28,21 @@ groups:
         data:
           - refId: A
             datasourceUid: PCC52D03280B7034C
+            queryType: ''
+            relativeTimeRange:
+              from: 300
+              to: 0
             model:
               rawSql: "SELECT cpu_percent FROM resource_metrics ORDER BY recorded_at DESC LIMIT 1"
               format: table
           - refId: B
             datasourceUid: "__expr__"
+            queryType: ''
+            relativeTimeRange:
+              from: 0
+              to: 0
             model:
+              type: classic_conditions
               conditions:
                 - evaluator:
                     params: [90]
@@ -46,7 +55,6 @@ groups:
                     params: []
                     type: last
                   type: query
-              type: classic_conditions
         noDataState: OK
         execErrState: Error
         for: 1m
@@ -59,12 +67,21 @@ groups:
         data:
           - refId: A
             datasourceUid: PCC52D03280B7034C
+            queryType: ''
+            relativeTimeRange:
+              from: 300
+              to: 0
             model:
               rawSql: "SELECT memory_percent FROM resource_metrics ORDER BY recorded_at DESC LIMIT 1"
               format: table
           - refId: B
             datasourceUid: "__expr__"
+            queryType: ''
+            relativeTimeRange:
+              from: 0
+              to: 0
             model:
+              type: classic_conditions
               conditions:
                 - evaluator:
                     params: [90]
@@ -77,7 +94,6 @@ groups:
                     params: []
                     type: last
                   type: query
-              type: classic_conditions
         noDataState: OK
         execErrState: Error
         for: 1m
@@ -90,12 +106,21 @@ groups:
         data:
           - refId: A
             datasourceUid: PCC52D03280B7034C
+            queryType: ''
+            relativeTimeRange:
+              from: 300
+              to: 0
             model:
               rawSql: "SELECT disk_percent FROM resource_metrics ORDER BY recorded_at DESC LIMIT 1"
               format: table
           - refId: B
             datasourceUid: "__expr__"
+            queryType: ''
+            relativeTimeRange:
+              from: 0
+              to: 0
             model:
+              type: classic_conditions
               conditions:
                 - evaluator:
                     params: [90]
@@ -108,7 +133,6 @@ groups:
                     params: []
                     type: last
                   type: query
-              type: classic_conditions
         noDataState: OK
         execErrState: Error
         for: 1m
@@ -121,12 +145,21 @@ groups:
         data:
           - refId: A
             datasourceUid: PCC52D03280B7034C
+            queryType: ''
+            relativeTimeRange:
+              from: 300
+              to: 0
             model:
               rawSql: "SELECT COUNT(*) FROM pipeline_logs WHERE status = 'failed' AND started_at > NOW() - INTERVAL '5 minutes'"
               format: table
           - refId: B
             datasourceUid: "__expr__"
+            queryType: ''
+            relativeTimeRange:
+              from: 0
+              to: 0
             model:
+              type: classic_conditions
               conditions:
                 - evaluator:
                     params: [0]
@@ -139,7 +172,6 @@ groups:
                     params: []
                     type: last
                   type: query
-              type: classic_conditions
         noDataState: OK
         execErrState: Error
         for: 1m

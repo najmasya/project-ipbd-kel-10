@@ -62,14 +62,17 @@ def train_model(model_name: str, model, X_train, y_train, X_test, y_test):
     joblib.dump(model, fpath)
     print(f"Model saved to {fpath}")
 
-    with mlflow.start_run(run_name=f"{model_name}_{run_id}"):
-        mlflow.log_params(model.get_params())
-        mlflow.log_metrics({"mae": mae, "rmse": rmse, "mape": mape})
-        mlflow.sklearn.log_model(
-            model, artifact_path="model",
-            registered_model_name=MLFLOW_MODEL_NAME,
-        )
-        print(f"Model registered to MLflow: {MLFLOW_MODEL_NAME}")
+    try:
+        with mlflow.start_run(run_name=f"{model_name}_{run_id}"):
+            mlflow.log_params(model.get_params())
+            mlflow.log_metrics({"mae": mae, "rmse": rmse, "mape": mape})
+            mlflow.sklearn.log_model(
+                sk_model=model,
+                artifact_path=model_name
+            )
+            print(f"Model logged to MLflow: {model_name}")
+    except Exception as e:
+        print(f"MLflow logging failed: {e}")
 
     return model, y_pred, run_id
 

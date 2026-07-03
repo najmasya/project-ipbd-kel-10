@@ -27,54 +27,55 @@ FEATURES = [
 ]
 
 
-def load_latest_model():
-    mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
-    try:
-        client = mlflow.tracking.MlflowClient()
-        versions = client.get_latest_versions(MLFLOW_MODEL_NAME, stages=["None", "Production"])
-        if versions:
-            v = versions[-1]
-            model_uri = f"models:/{MLFLOW_MODEL_NAME}/{v.version}"
-            model = mlflow.sklearn.load_model(model_uri)
-            print(f"Loaded from MLflow: {MLFLOW_MODEL_NAME} v{v.version}")
-            return model, str(v.version), MLFLOW_MODEL_NAME
-    except Exception as e:
-        print(f"MLflow registry failed: {e}")
-
+def load_latest_models():
+    models_list = []
     for fname in ["linear_regression.pkl", "random_forest.pkl"]:
         fpath = os.path.join(MODELS_DIR, fname)
         if os.path.exists(fpath):
             model = joblib.load(fpath)
             model_name = fname.replace(".pkl", "")
             print(f"Loaded from local: {fpath}")
-            return model, "local", model_name
-    raise FileNotFoundError(f"No model found")
+            models_list.append((model, "local", model_name))
+    
+    if not models_list:
+        raise FileNotFoundError(f"No model found")
+    return models_list
 
 
 def run_inference():
-    model, version, model_name = load_latest_model()
+    models_list = load_latest_models()
     last_row = read_latest_features()
     X = last_row[FEATURES].values
-
-    prediction = model.predict(X)[0]
 
     today = date.today()
     from dateutil.relativedelta import relativedelta
     target_month = (today.replace(day=1) + relativedelta(months=1))
 
-    pred_df = pd.DataFrame([{
-        "prediction_date": today,
-        "target_month": target_month,
-        "model_name": model_name,
-        "model_version": str(version),
-        "predicted_value": round(prediction, 2),
-        "actual_value": None,
-        "upper_bound": round(prediction * 1.1, 2),
-        "lower_bound": round(prediction * 0.9, 2),
-    }])
+    all_preds = []
+    for model, version, model_name in models_list:
+        prediction = model.predict(X)[0]
+        
+        all_preds.append({
+            "prediction_date": today,
+            "target_month": target_month,
+            "model_name": model_name,
+            "model_version": str(version),
+            "predicted_value": round(prediction, 2),
+            "actual_value": None,
+            "upper_bound": round(prediction * 1.1, 2),
+            "lower_bound": round(prediction * 0.9, 2),
+        })
+        print(f"Prediction for {target_month} ({model_name}): {prediction:.2f}")
 
+        try:
+            from scripts.telegram_alert import send_business_alert
+            if prediction > 1500000:
+                send_business_alert(f"Gold Price Prediction ({model_name})", prediction, 1500000, "above")
+        except Exception:
+            pass
+
+    pred_df = pd.DataFrame(all_preds)
     save_predictions_to_postgres(pred_df)
-    print(f"Prediction for {target_month}: {prediction:.2f}")
 
     try:
         from scripts.telegram_alert import send_business_alert

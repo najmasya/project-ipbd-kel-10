@@ -67,8 +67,10 @@ def build_features():
     )
 
     try:
+        # Force eager evaluation of schema to catch missing files immediately
+        _check = spark.read.parquet(SILVER_STREAM)
         xauusd = (
-            spark.read.parquet(SILVER_STREAM)
+            _check
             .withColumn("month_key", date_format(col("window_start"), "yyyy-MM"))
             .groupBy("month_key")
             .agg(
@@ -181,9 +183,10 @@ def insert_fact_market_daily():
     daily = daily.join(inflation_monthly, on="month_key", how="left")
 
     try:
-        xauusd = spark.read.parquet(SILVER_STREAM)
+        # Force eager evaluation of schema to catch missing files immediately
+        _check = spark.read.parquet(SILVER_STREAM)
         xauusd_daily = (
-            xauusd
+            _check
             .withColumn("date", to_date(col("window_start")))
             .groupBy("date")
             .agg(

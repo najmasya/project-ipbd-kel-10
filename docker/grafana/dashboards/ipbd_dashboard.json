@@ -1,57 +1,109 @@
 {
   "title": "IPBD Monitoring Dashboard",
   "uid": "ipbd-dashboard",
+  "schemaVersion": 38,
+  "timezone": "browser",
+  "refresh": "10s",
+  "time": { "from": "now-24h", "to": "now" },
   "panels": [
     {
+      "id": 1,
       "type": "timeseries",
       "title": "CPU Usage (%)",
       "gridPos": { "h": 8, "w": 8, "x": 0, "y": 0 },
       "targets": [
         {
-          "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" },
-          "rawSql": "SELECT recorded_at AS time, cpu_percent FROM resource_metrics ORDER BY recorded_at ASC",
-          "format": "table"
+          "refId": "A",
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "PCC52D03280B7034C" },
+          "rawSql": "SELECT recorded_at AS time, cpu_percent AS value FROM resource_metrics WHERE recorded_at >= NOW() - INTERVAL '24 hours' ORDER BY recorded_at",
+          "format": "time_series"
         }
-      ]
+      ],
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "single" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "custom": { "drawStyle": "line", "lineInterpolation": "linear", "fillOpacity": 20, "showPoints": "auto" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 70 }, { "color": "red", "value": 90 }] }
+        }
+      }
     },
     {
+      "id": 2,
       "type": "timeseries",
       "title": "Memory Usage (%)",
       "gridPos": { "h": 8, "w": 8, "x": 8, "y": 0 },
       "targets": [
         {
-          "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" },
-          "rawSql": "SELECT recorded_at AS time, memory_percent FROM resource_metrics ORDER BY recorded_at ASC",
-          "format": "table"
+          "refId": "A",
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "PCC52D03280B7034C" },
+          "rawSql": "SELECT recorded_at AS time, memory_percent AS value FROM resource_metrics WHERE recorded_at >= NOW() - INTERVAL '24 hours' ORDER BY recorded_at",
+          "format": "time_series"
         }
-      ]
+      ],
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "single" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "custom": { "drawStyle": "line", "lineInterpolation": "linear", "fillOpacity": 20, "showPoints": "auto" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 70 }, { "color": "red", "value": 90 }] }
+        }
+      }
     },
     {
+      "id": 3,
       "type": "timeseries",
       "title": "Disk Usage (%)",
       "gridPos": { "h": 8, "w": 8, "x": 16, "y": 0 },
       "targets": [
         {
-          "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" },
-          "rawSql": "SELECT recorded_at AS time, disk_percent FROM resource_metrics ORDER BY recorded_at ASC",
-          "format": "table"
+          "refId": "A",
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "PCC52D03280B7034C" },
+          "rawSql": "SELECT recorded_at AS time, disk_percent AS value FROM resource_metrics WHERE recorded_at >= NOW() - INTERVAL '24 hours' ORDER BY recorded_at",
+          "format": "time_series"
         }
-      ]
+      ],
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "single" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "custom": { "drawStyle": "line", "lineInterpolation": "linear", "fillOpacity": 20, "showPoints": "auto" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 70 }, { "color": "red", "value": 90 }] }
+        }
+      }
     },
     {
+      "id": 4,
       "type": "table",
       "title": "Pipeline Execution Logs",
       "gridPos": { "h": 12, "w": 24, "x": 0, "y": 8 },
       "targets": [
         {
-          "datasource": { "type": "postgres", "uid": "PCC52D03280B7034C" },
-          "rawSql": "SELECT started_at as time, pipeline_name, status, severity, message FROM pipeline_logs ORDER BY started_at DESC LIMIT 100",
+          "refId": "A",
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "PCC52D03280B7034C" },
+          "rawSql": "SELECT started_at AS time, pipeline_name, status, severity, message FROM pipeline_logs ORDER BY started_at DESC LIMIT 100",
           "format": "table"
         }
-      ]
+      ],
+      "options": { "showHeader": true },
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "inspect": false } }
+      }
     }
-  ],
-  "schemaVersion": 38,
-  "timezone": "browser",
-  "refresh": "10s"
+  ]
 }

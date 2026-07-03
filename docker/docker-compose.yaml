@@ -350,6 +350,7 @@ services:
       - ../docker/grafana/datasources:/etc/grafana/provisioning/datasources
       - ../docker/grafana/dashboards:/etc/grafana/provisioning/dashboards
       - ../docker/grafana/notifiers:/etc/grafana/provisioning/notifiers
+      - ../docker/grafana/alerts:/etc/grafana/provisioning/alerting
     networks:
       - ipbd-net
 
