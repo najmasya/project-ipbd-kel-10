@@ -7,8 +7,8 @@ contactPoints:
       - uid: telegram1
         type: telegram
         settings:
-          bottoken: "8683547942:AAFoJRDrsFzaI4yghNw0uMghwVAfXvACRA0"
-          chatid: "5519545800"
+          bottoken: "your_telegram_bot_token"
+          chatid: "your_telegram_chat_id"
           parse_mode: "HTML"
 
 policies:

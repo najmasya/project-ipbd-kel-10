@@ -1,8 +1,32 @@
 import os
+import time
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import (
     col, to_timestamp, window, avg, max, min, count, stddev, first, last, lit,
 )
+
+
+def log_pipeline(status, message, records=0, duration=0, severity="INFO"):
+    try:
+        import psycopg2
+        conn = psycopg2.connect(
+            host=os.getenv("POSTGRES_HOST", "postgres"),
+            port=int(os.getenv("POSTGRES_PORT", "5432")),
+            user=os.getenv("POSTGRES_USER", "ipbd_user"),
+            password=os.getenv("POSTGRES_PASSWORD", "ipbd_pass"),
+            dbname=os.getenv("POSTGRES_DB", "pipeline_db"),
+        )
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO pipeline_logs
+                (pipeline_name, task_name, status, severity, message, records_count, duration_ms, started_at, finished_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+        """, ("stream_etl", "reprocess_historical", status, severity, message, records, duration))
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        print(f"[LOG] Failed: {e}")
 
 MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "http://minio:9000")
 MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "minio_admin")
@@ -67,4 +91,12 @@ def reprocess_historical():
 
 
 if __name__ == "__main__":
-    reprocess_historical()
+    start_ts = time.time()
+    try:
+        reprocess_historical()
+        dur = int((time.time() - start_ts) * 1000)
+        log_pipeline("success", "Stream ETL reprocess completed", duration=dur, severity="INFO")
+    except Exception as e:
+        dur = int((time.time() - start_ts) * 1000)
+        log_pipeline("failed", str(e), duration=dur, severity="FATAL")
+        print(f"Stream ETL reprocess failed: {e}")

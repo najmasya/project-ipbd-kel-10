@@ -7,7 +7,7 @@ from datetime import datetime, date
 from minio import Minio
 from io import BytesIO
 
-BPS_API_KEY = os.getenv("BPS_API_KEY", "4a67171f05ad5ed1156015dbc801c263")
+BPS_API_KEY = os.getenv("BPS_API_KEY", "your_bps_api_key")
 MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "minio:9000")
 MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "minio_admin")
 MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY", "minio_pass123")

@@ -1,4 +1,5 @@
 import os
+import sys
 import uuid
 import joblib
 import pandas as pd
@@ -6,10 +7,25 @@ import numpy as np
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestRegressor
+
+sys.path.insert(0, "/opt/spark-apps")
+
+os.environ["AWS_ACCESS_KEY_ID"] = "minio_admin"
+os.environ["AWS_SECRET_ACCESS_KEY"] = "minio_pass123"
+os.environ["MLFLOW_S3_ENDPOINT_URL"] = "http://minio:9000"
+os.environ["AWS_DEFAULT_REGION"] = "us-east-1"
 try:
     from src.ml.utils import read_dataset, save_predictions_to_postgres
 except ImportError:
-    from ml.utils import read_dataset, save_predictions_to_postgres
+    try:
+        from ml.utils import read_dataset, save_predictions_to_postgres
+    except ImportError:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("utils", "/opt/spark-apps/src/ml/utils.py")
+        utils = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(utils)
+        read_dataset = utils.read_dataset
+        save_predictions_to_postgres = utils.save_predictions_to_postgres
 
 import mlflow
 import mlflow.sklearn
@@ -67,12 +83,11 @@ def train_model(model_name: str, model, X_train, y_train, X_test, y_test):
             mlflow.log_params(model.get_params())
             mlflow.log_metrics({"mae": mae, "rmse": rmse, "mape": mape})
             mlflow.sklearn.log_model(
-                sk_model=model,
-                artifact_path=model_name
+                sk_model=model, artifact_path=model_name,
             )
-            print(f"Model logged to MLflow: {model_name}")
+            print(f"  MLflow logged: {model_name}_{run_id}")
     except Exception as e:
-        print(f"MLflow logging failed: {e}")
+        print(f"  MLflow skipped: {e}")
 
     return model, y_pred, run_id
 

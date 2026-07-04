@@ -30,14 +30,7 @@ def query_trino(sql: str) -> pd.DataFrame:
         cur.execute(sql)
         rows = cur.fetchall()
         cols = [desc[0] for desc in cur.description]
-        df = pd.DataFrame(rows, columns=cols)
-        # Convert decimal.Decimal to float for Streamlit/Altair compatibility
-        for col in df.select_dtypes(include=['object']).columns:
-            try:
-                df[col] = df[col].astype(float)
-            except (ValueError, TypeError):
-                pass
-        return df
+        return pd.DataFrame(rows, columns=cols)
     except Exception:
         return pd.DataFrame()
 
@@ -77,23 +70,17 @@ with tab1:
                 return "N/A"
             return fmt_str.format(val) + suffix
 
-        def get_latest_valid(col_name):
-            # Ensure it's a numeric series and drop any NaNs or Nones
-            s = pd.to_numeric(df_market[col_name], errors='coerce')
-            valid_series = s.dropna()
-            return valid_series.iloc[-1] if not valid_series.empty else None
-
         kol1.metric(
             "💍 Harga Emas (Rp/gram)",
-            safe_fmt(get_latest_valid("gold_price_rp"), "Rp {:,.0f}"),
+            safe_fmt(latest.get("gold_price_rp"), "Rp {:,.0f}"),
         )
         kol2.metric(
             "💱 USD/IDR",
-            safe_fmt(get_latest_valid("usd_idr_rate"), "Rp {:,.0f}"),
+            safe_fmt(latest.get("usd_idr_rate"), "Rp {:,.0f}"),
         )
         kol3.metric(
             "📊 Inflasi",
-            safe_fmt(get_latest_valid("inflation_rate"), "{:.2f}", "%"),
+            safe_fmt(latest.get("inflation_rate"), "{:.2f}", "%"),
         )
 
         st.subheader("Harga Emas & Kurs Rupiah — 1 Tahun Terakhir")

@@ -2,7 +2,7 @@
 .env
 .env.najma
 *.env.local
-.env.example
+# .env.example is template, keep in git
 
 # Python
 __pycache__/

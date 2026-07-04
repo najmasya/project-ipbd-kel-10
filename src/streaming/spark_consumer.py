@@ -1,4 +1,5 @@
 import os
+import time
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import (
     col, from_json, current_timestamp, to_timestamp, window,
@@ -89,16 +90,58 @@ df_ohlc = (
     )
 )
 
+BATCH_LOG_INTERVAL = 10
+_batch_count = [0]
+_start_time = [None]
+
+
+def log_pipeline(status, message, records=0, duration=0, severity="INFO"):
+    try:
+        import psycopg2
+        conn = psycopg2.connect(
+            host=os.getenv("POSTGRES_HOST", "postgres"),
+            port=int(os.getenv("POSTGRES_PORT", "5432")),
+            user=os.getenv("POSTGRES_USER", "ipbd_user"),
+            password=os.getenv("POSTGRES_PASSWORD", "ipbd_pass"),
+            dbname=os.getenv("POSTGRES_DB", "pipeline_db"),
+        )
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO pipeline_logs
+                (pipeline_name, task_name, status, severity, message, records_count, duration_ms, started_at, finished_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+        """, ("stream_ingest", "spark_consumer", status, severity, message, records, duration))
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        print(f"[LOG] Failed: {e}")
+
+
+def write_batch(df, epoch_id):
+    global _batch_count, _start_time
+    if _start_time[0] is None:
+        _start_time[0] = time.time()
+    _batch_count[0] += 1
+
+    df.write.mode("append").parquet(SILVER_PATH)
+    count = df.count()
+    log_pipeline("success", f"Batch {epoch_id}: {count} ticks processed", count, severity="INFO")
+
+    if _batch_count[0] % BATCH_LOG_INTERVAL == 0:
+        elapsed = int((time.time() - _start_time[0]) * 1000)
+        print(f"[STREAM] {_batch_count[0]} batches processed, {elapsed}ms elapsed")
+
+
 query = (
     df_ohlc.writeStream
     .outputMode("append")
-    .format("parquet")
-    .option("path", SILVER_PATH)
+    .foreachBatch(write_batch)
     .option("checkpointLocation", CHECKPOINT_PATH)
-    .partitionBy("symbol")
     .trigger(processingTime="1 minute")
     .start()
 )
 
+log_pipeline("success", "Spark Streaming consumer started", severity="INFO")
 print(f"Spark Streaming consumer started. Writing clean OHLC to {SILVER_PATH}")
 query.awaitTermination()
