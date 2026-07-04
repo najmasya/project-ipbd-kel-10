@@ -71,8 +71,8 @@ def run_inference():
             from scripts.telegram_alert import send_business_alert
             if prediction > 1500000:
                 send_business_alert(f"Gold Price Prediction ({model_name})", prediction, 1500000, "above")
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Alert failed: {e}")
 
     pred_df = pd.DataFrame(all_preds)
     save_predictions_to_postgres(pred_df)
@@ -81,8 +81,8 @@ def run_inference():
         from scripts.telegram_alert import send_business_alert
         if prediction > 1500000:
             send_business_alert("Gold Price Prediction", prediction, 1500000, "above")
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Alert failed: {e}")
 
 
 if __name__ == "__main__":

@@ -28,10 +28,15 @@ producer = KafkaProducer(
 def connect_mt5():
     if not mt5.initialize():
         raise RuntimeError(f"MT5 init failed: {mt5.last_error()}")
-    authorized = mt5.login(MT5_LOGIN, password=MT5_PASSWORD, server=MT5_SERVER)
-    if not authorized:
-        raise RuntimeError(f"MT5 login failed: {mt5.last_error()}")
-    print(f"Connected to MT5 | Account: {mt5.account_info().login}")
+
+    account_info = mt5.account_info()
+    if account_info is not None:
+        print(f"Already connected | Account: {account_info.login}")
+    else:
+        authorized = mt5.login(MT5_LOGIN, password=MT5_PASSWORD, server=MT5_SERVER)
+        if not authorized:
+            raise RuntimeError(f"MT5 login failed: {mt5.last_error()}")
+        print(f"Connected to MT5 | Account: {mt5.account_info().login}")
 
 
 def calculate_volatility(values: deque):

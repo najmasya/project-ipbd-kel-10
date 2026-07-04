@@ -19,6 +19,10 @@ RUN wget -q -P /opt/spark/jars/ \
     https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-aws/3.3.4/hadoop-aws-3.3.4.jar \
     https://repo1.maven.org/maven2/com/amazonaws/aws-java-sdk-bundle/1.12.262/aws-java-sdk-bundle-1.12.262.jar
 
+# PostgreSQL JDBC driver
+RUN wget -q -P /opt/spark/jars/ \
+    https://repo1.maven.org/maven2/org/postgresql/postgresql/42.7.1/postgresql-42.7.1.jar
+
 # Kafka Streaming jars
 RUN wget -q -P /opt/spark/jars/ \
     https://repo1.maven.org/maven2/org/apache/spark/spark-sql-kafka-0-10_2.12/3.5.3/spark-sql-kafka-0-10_2.12-3.5.3.jar \

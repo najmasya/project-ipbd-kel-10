@@ -17,10 +17,13 @@ MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY", "minio_pass123")
 
 
 def _s3_storage_options():
+    endpoint = MINIO_ENDPOINT
+    if not endpoint.startswith("http"):
+        endpoint = f"http://{endpoint}"
     return {
         "key": MINIO_ACCESS_KEY,
         "secret": MINIO_SECRET_KEY,
-        "endpoint_url": MINIO_ENDPOINT,
+        "endpoint_url": endpoint,
     }
 
 

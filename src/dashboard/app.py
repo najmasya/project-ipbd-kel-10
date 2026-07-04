@@ -47,7 +47,7 @@ st.markdown(
     "Analisis pergerakan harga emas & forecasting untuk pengambilan keputusan investasi"
 )
 
-tab1, tab2 = st.tabs(["📈 Pasar & Tren", "🔮 Forecasting"])
+tab1, tab2 = st.tabs(["Pasar & Tren", "Forecasting"])
 
 # ═══════════════════════════════════════════
 # TAB 1 — Pasar & Tren
@@ -64,7 +64,7 @@ with tab1:
     """)
 
     if df_market.empty:
-        st.info("💡 Belum ada data pasar. Pipeline batch akan mengisi data setelah "
+        st.info("Belum ada data pasar. Pipeline batch akan mengisi data setelah "
                 "ingestion pertama.")
     else:
         df_market = df_market.sort_values("date")
@@ -84,15 +84,15 @@ with tab1:
             return valid_series.iloc[-1] if not valid_series.empty else None
 
         kol1.metric(
-            "💍 Harga Emas (Rp/gram)",
+            "Harga Emas (Rp/gram)",
             safe_fmt(get_latest_valid("gold_price_rp"), "Rp {:,.0f}"),
         )
         kol2.metric(
-            "💱 USD/IDR",
+            "USD/IDR",
             safe_fmt(get_latest_valid("usd_idr_rate"), "Rp {:,.0f}"),
         )
         kol3.metric(
-            "📊 Inflasi",
+            "Inflasi",
             safe_fmt(get_latest_valid("inflation_rate"), "{:.2f}", "%"),
         )
 
@@ -125,7 +125,7 @@ with tab2:
     """)
 
     if df_pred.empty:
-        st.info("💡 Belum ada hasil prediksi. Menunggu training model ML pertama.")
+        st.info("Belum ada hasil prediksi. Menunggu training model ML pertama.")
     else:
         df_pred = df_pred.sort_values("target_month")
 
@@ -138,17 +138,17 @@ with tab2:
             latest_pred = df_model.iloc[-1]
             pred_val = latest_pred["predicted_value"]
             if pd.isna(pred_val):
-                st.metric(f"🔮 Prediksi Bulan Depan — {selected_model}", "N/A")
+                st.metric(f"Prediksi Bulan Depan — {selected_model}", "N/A")
             elif pd.notna(latest_pred["actual_value"]):
                 delta_val = pred_val - latest_pred["actual_value"]
                 st.metric(
-                    f"🔮 Prediksi Bulan Depan — {selected_model}",
+                    f"Prediksi Bulan Depan — {selected_model}",
                     f"Rp {pred_val:,.0f}",
                     delta=f"vs aktual: {delta_val:+,.0f}",
                 )
             else:
                 st.metric(
-                    f"🔮 Prediksi Bulan Depan — {selected_model}",
+                    f"Prediksi Bulan Depan — {selected_model}",
                     f"Rp {pred_val:,.0f}",
                 )
 
@@ -192,7 +192,7 @@ with tab2:
             )
             st.dataframe(df_metrics, use_container_width=True)
         else:
-            st.info("💡 Belum cukup data actual untuk menghitung metrik error model.")
+            st.info("Belum cukup data actual untuk menghitung metrik error model.")
 
         st.subheader("Riwayat Prediksi")
         df_table = df_pred.sort_values("target_month", ascending=False)
